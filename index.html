@@ -1,0 +1,2382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Blindness — The Great Carbon Pulse</title> <!-- Title will be updated by AI -->
+    <!-- The vis-network library is essential for rendering the diagram -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js" crossorigin="anonymous"></script>
+    <style type="text/css">
+        /* Basic styles - minimal changes from v3 */
+        body, html {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden; /* Prevent scrollbars on the body itself */
+            background-color: #f0f2f5;
+        }
+        #cldContainer {
+            position: relative;
+            width: 100%;
+            height: 100vh; /* Full viewport height */
+            display: flex; /* Use flexbox for layout */
+            flex-direction: column; /* Stack children vertically */
+        }
+        #cldNetwork {
+            flex-grow: 1; /* Allow network to take available space */
+            border: 1px solid #d1d5db;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            min-height: 0; /* Important for flex children to shrink if needed */
+        }
+        .vis-network { /* Ensure vis-network itself fills its container */
+             width: 100%;
+             height: 100%;
+        }
+
+        /* Model Title Display */
+        #modelTitleDisplay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #1F2937;
+            background-color: rgba(255, 255, 255, 0.85);
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        /* Save Button Style */
+        #saveButton {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 25;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 500;
+            color: white;
+            background-color: #2563EB;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: background-color 0.2s;
+        }
+        #saveButton:hover {
+            background-color: #1D4ED8;
+        }
+
+
+        /* Legend & Archetype Dropdown Styles */
+        .legend-container {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            left: auto;
+            width: calc(25% - 20px);
+            max-width: 350px;
+            min-width: 250px; /* Ensure minimum width */
+            background-color: rgba(255, 255, 255, 0.92);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+            height: 42px; /* Initial collapsed height */
+            overflow: hidden;
+            z-index: 20;
+            transition: height 0.3s ease-in-out;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+        #legend {
+            z-index: 21; /* Higher z-index to appear on top */
+        }
+        #archetypeLegend {
+             top: 62px; /* Position below the first legend */
+             z-index: 20;
+        }
+        .legend-container.expanded {
+            height: 35vh; /* Adjusted expanded height */
+            min-height: 150px; /* Minimum expanded height */
+        }
+        .legend-container h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            cursor: pointer;
+            flex-shrink: 0; /* Prevent header from shrinking */
+            background-color: inherit; /* Ensure background matches */
+            z-index: 1; /* Keep header above scrolling list */
+        }
+        .legend-container h3::after {
+            content: '▼';
+            font-size: 12px;
+            margin-left: 10px;
+            transition: transform 0.3s ease-in-out;
+        }
+        .legend-container.expanded h3::after {
+            transform: rotate(180deg);
+        }
+        .legend-container ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1; /* Allow list to take available space */
+            overflow-y: auto; /* Enable scrolling for list */
+            padding-top: 5px;
+        }
+        .legend-container li {
+            padding: 9px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s ease-in-out, border-left 0.2s ease-in-out, opacity 0.2s ease;
+            line-height: 1.4;
+            border-left: 3px solid transparent;
+            word-wrap: break-word; /* Wrap long loop names */
+            overflow-wrap: break-word; /* Wrap long loop names */
+        }
+        .legend-container li:last-child {
+            border-bottom: none;
+        }
+        .legend-container li:hover {
+            background-color: #e9f5ff;
+        }
+        .legend-container li.selected-item {
+            background-color: #d6eaff;
+            border-left: 3px solid #0056b3;
+            font-weight: 500;
+        }
+        .legend-container li.dragging {
+            opacity: 0.5;
+            background-color: #f0f0f0;
+        }
+        .drag-over-top {
+            border-top: 2px solid #2563EB;
+        }
+        .drag-over-bottom {
+            border-bottom: 2px solid #2563EB;
+        }
+
+        /* Description Styles */
+        .description-box {
+            position: fixed;
+            right: 10px;
+            left: auto;
+            width: calc(25% - 20px);
+            max-width: 350px;
+            min-width: 250px;
+            background-color: rgba(255, 255, 255, 0.97);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            font-size: 13.5px;
+            color: #333;
+            z-index: 15;
+            display: none; /* Initially hidden */
+            line-height: 1.6;
+            max-height: calc(100vh - 120px); /* Adjust max height */
+            overflow-y: auto;
+            transition: opacity 0.3s ease-in-out, top 0.3s ease-in-out;
+            bottom: auto; /* Ensure it doesn't stick to bottom */
+        }
+        .description-box strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #004a99;
+            font-size: 14px;
+        }
+        .description-box p {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .description-box p:last-child {
+             margin-bottom: 0;
+        }
+
+        /* Custom Tooltip Styles */
+        #nodeTooltip, #edgeTooltip {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.95);
+            border: 1px solid #ccc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 13px;
+            color: #333;
+            max-width: 300px;
+            word-wrap: break-word;
+            display: none;
+            z-index: 100;
+            pointer-events: none;
+            line-height: 1.4;
+        }
+        
+        /* --- MODIFICATION --- */
+        /* Style for Measurement paragraph in tooltips (HIDDEN) */
+        /* The original CSS block that styled this paragraph has been replaced */
+        /* with 'display: none;' to hide it completely. */
+        #nodeTooltip p:last-child, 
+        #edgeTooltip p:last-child {
+            display: none; /* This hides the last paragraph (the measurement) */
+        }
+        /* --- END MODIFICATION --- */
+
+
+        #canvasTooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            border: 1px solid #555;
+            padding: 10px 14px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            font-size: 14px;
+            max-width: 320px;
+            word-wrap: break-word;
+            display: none;
+            z-index: 101;
+            pointer-events: none;
+            line-height: 1.5;
+        }
+        #canvasTooltip strong {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+            color: #a5c9ff;
+        }
+
+        /* Context Menu Styles */
+        .context-menu {
+            display: none;
+            position: absolute;
+            z-index: 1000;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            padding: 5px 0;
+            font-size: 14px;
+            min-width: 120px;
+        }
+        .context-menu ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .context-menu li {
+            padding: 8px 15px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .context-menu li:hover {
+            background-color: #f0f0f0;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none; /* Hidden by default */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1999;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 450px;
+        }
+        .modal-content h4 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 18px;
+            color: #333;
+        }
+        .modal-content label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        .modal-content input, .modal-content textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px; /* Reduced margin */
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px; /* Slightly smaller font */
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+        .modal-content textarea {
+            resize: vertical;
+            min-height: 80px; /* Minimum height */
+        }
+        #editLoopNameInput {
+             height: auto; /* Let it size based on content */
+             min-height: 40px; /* Small min height */
+             resize: none; /* Disable manual resize */
+             overflow: hidden; /* Hide scrollbar initially */
+        }
+        #editLoopDescriptionInput {
+            height: 120px;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 10px; /* Add some space above buttons */
+        }
+        .modal-buttons button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .modal-save-btn {
+            background-color: #2563EB;
+            color: white;
+        }
+        .modal-save-btn:hover {
+            background-color: #1D4ED8;
+        }
+        .modal-cancel-btn {
+            background-color: #E5E7EB;
+            color: #374151;
+        }
+         .modal-cancel-btn:hover {
+            background-color: #D1D5DB;
+        }
+
+        /* Vis.js specific overrides if needed */
+        div.vis-network div.vis-manipulation {
+            border-bottom-width: 1px; /* Ensure manipulation bar looks okay */
+        }
+
+        /* Add scrollbar styling for legends/descriptions */
+        .legend-container ul::-webkit-scrollbar,
+        .description-box::-webkit-scrollbar {
+            width: 8px;
+        }
+        .legend-container ul::-webkit-scrollbar-track,
+        .description-box::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .legend-container ul::-webkit-scrollbar-thumb,
+        .description-box::-webkit-scrollbar-thumb {
+            background: #a8a8a8;
+            border-radius: 4px;
+        }
+        .legend-container ul::-webkit-scrollbar-thumb:hover,
+        .description-box::-webkit-scrollbar-thumb:hover {
+            background: #888;
+        }
+
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Main container for the diagram and UI elements -->
+    <div id="cldContainer">
+        <!-- Display for the model's title -->
+        <div id="modelTitleDisplay">Bioregional Ecosystem Restoration Community</div>
+        <!-- Button to trigger the save process -->
+        <button id="saveButton" style="display: none;">Save Model</button> <!-- Hidden by default, shown via JS -->
+        <!-- Div where the Vis.js network will be rendered -->
+        <div id="cldNetwork"></div>
+        <!-- Legend for Feedback Loops -->
+        <div id="legend" class="legend-container">
+            <h3>Feedback Loops</h3>
+            <ul id="loopList"></ul>
+        </div>
+        <!-- Legend for System Archetypes -->
+        <div id="archetypeLegend" class="legend-container">
+            <h3>Archetypes</h3>
+            <ul id="archetypeList"></ul>
+        </div>
+        <!-- Box to display description of the selected loop -->
+        <div id="loopDescription" class="description-box"></div>
+        <!-- Box to display description of the selected archetype -->
+        <div id="archetypeDescription" class="description-box"></div>
+        <!-- Tooltip for nodes -->
+        <div id="nodeTooltip"></div>
+        <!-- Tooltip for edges -->
+        <div id="edgeTooltip"></div>
+        <!-- Tooltip for loop labels on the canvas -->
+        <div id="canvasTooltip"></div>
+    </div>
+
+    <!-- Context Menu for loop list items -->
+    <div id="loopContextMenu" class="context-menu">
+        <ul>
+            <li id="renameLoopOption">Edit Loop Details</li>
+            <!-- Add other options here if needed later -->
+        </ul>
+    </div>
+
+    <!-- Modal Dialog for Editing Loop Name and Description -->
+    <div id="editModal" class="modal-overlay">
+        <div class="modal-content">
+            <h4>Edit Loop Details</h4>
+            <label for="editLoopNameInput">Loop Name (e.g., The Growth Engine)</label>
+            <textarea id="editLoopNameInput" placeholder="Enter loop name (without ID prefix)" rows="2"></textarea>
+            <label for="editLoopDescriptionInput">Loop Description (Tooltip)</label>
+            <textarea id="editLoopDescriptionInput" placeholder="Enter loop description..."></textarea>
+            <div class="modal-buttons">
+                <button id="modalCancelBtn" class="modal-cancel-btn">Cancel</button>
+                <button id="modalSaveBtn" class="modal-save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog for Saving the File -->
+    <div id="saveModal" class="modal-overlay" style="display: none;"> <!-- Start hidden -->
+        <div class="modal-content">
+            <h4>Save Model As</h4>
+            <label for="saveFilenameInput">Model Title</label>
+            <input type="text" id="saveFilenameInput" placeholder="Enter model title...">
+            <div class="modal-buttons">
+                <button id="modalCancelSaveBtn" class="modal-cancel-btn">Cancel</button>
+                <button id="modalSaveFileBtn" class="modal-save-btn">Save HTML File</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- DATA DEFINITIONS ---
+            // This entire block is replaced by the 'Save Model' function with the current data.
+            // When generating a new diagram, the AI populates these arrays based on the prompt.
+
+            // START_DATA_BLOCK
+            const nodesArray = [
+                {
+                    "id": "n1",
+                    "label": "Fossil Energy\nReserves",
+                    "shape": "box",
+                    "color": { "background": "#CCFBF1", "border": "#14B8A6" },
+                    "description": "The one-time inheritance of stored ancient sunlight (oil, coal, gas). Formed from marine phytoplankton over millions of years; being drained in centuries. We burn ~100 billion barrels of oil equivalent per year globally.\n\nMeasurement: Proven reserves in barrels of oil equivalent (BOE); global conventional reserves plateau ~15 years.",
+                    "x": -500, "y": 0
+                },
+                {
+                    "id": "n2",
+                    "label": "Extraction\nRate",
+                    "shape": "ellipse",
+                    "color": { "background": "#DBEAFE", "border": "#3B82F6" },
+                    "description": "Speed of drawing fossil energy from the ground — conventional fields, shale (fracking), and tertiary extraction. Shale requires drilling more wells faster just to keep production flat. Conventional global oil production has been on a plateau for ~15 years.\n\nMeasurement: Million barrels per day (Mb/d); global ~100 Mb/d.",
+                    "x": -200, "y": 0
+                },
+                {
+                    "id": "n3",
+                    "label": "Industrial\nComplexity",
+                    "shape": "box",
+                    "color": { "background": "#CCFBF1", "border": "#14B8A6" },
+                    "description": "The web of 6,000+ products, global supply chains, industrial agriculture, modern medicine, electrification, the internet, and infrastructure entirely dependent on cheap fossil energy. The human economy is now 1,000× larger than 500 years ago. Cheap energy builds complex systems; complex systems depend on cheap energy.\n\nMeasurement: GDP or Human Development Index as proxies; degree of supply chain interdependency.",
+                    "x": -100, "y": -200
+                },
+                {
+                    "id": "n4",
+                    "label": "Global\nPopulation",
+                    "shape": "box",
+                    "color": { "background": "#CCFBF1", "border": "#14B8A6" },
+                    "description": "Humans supported by fossil-powered systems. Grew from 1 billion to 8 billion during the Carbon Pulse — a trajectory impossible without industrial agriculture, modern medicine, and fossil-powered water systems. ~4 billion people depend directly on Haber-Bosch nitrogen fertiliser (made from natural gas).\n\nMeasurement: Global headcount (billions); ~8 billion today.",
+                    "x": 100, "y": -250
+                },
+                {
+                    "id": "n5",
+                    "label": "Monetary Claims\n& Debt",
+                    "shape": "box",
+                    "color": { "background": "#CCFBF1", "border": "#14B8A6" },
+                    "description": "The financial system's accumulated promises of future wealth — interest-bearing debt, derivatives, pension obligations, monetary expansion — all premised on a perpetually growing energy base. The entire structure of debt, interest, and repayment assumes a future that is bigger and materially richer than today.\n\nMeasurement: Global debt-to-GDP ratio; central bank balance sheets; total outstanding credit.",
+                    "x": 200, "y": 150
+                },
+                {
+                    "id": "n6",
+                    "label": "Energy\nCost",
+                    "shape": "box",
+                    "color": { "background": "#FEE2E2", "border": "#EF4444" },
+                    "description": "The financial and physical price of acquiring the next unit of energy. Even at $500/barrel, oil would still be extraordinary value for the work it performs. But our systems were designed around $20–50 oil — energy price spikes destabilise entire economies because every process was built around cheap energy as a nearly free input.\n\nMeasurement: Oil price ($/barrel); energy expenditure as % of GDP.",
+                    "x": -100, "y": 200
+                },
+                {
+                    "id": "n7",
+                    "label": "Ecological\nHealth",
+                    "shape": "box",
+                    "color": { "background": "#CCFBF1", "border": "#14B8A6" },
+                    "description": "The functional integrity of the biosphere — climate stability, species diversity, soil health, water cycles, forest coverage. 70% of wildlife populations have already disappeared since 1970. The energy crisis and climate crisis are not separate problems — they are two faces of the same predicament: burning carbon at scale.\n\nMeasurement: Living Planet Index; atmospheric CO₂ ppm; soil organic carbon stocks.",
+                    "x": -400, "y": 200
+                },
+                {
+                    "id": "n8",
+                    "label": "Food\nSecurity",
+                    "shape": "box",
+                    "color": { "background": "#FEE2E2", "border": "#EF4444" },
+                    "description": "The ability to feed the population. The food system now runs at a 10:1 energy deficit — 10 fossil calories in for every food calorie on your plate. Tractors run on diesel; fertiliser comes from natural gas; pesticides from petrochemicals; packaging and distribution from oil. Roughly half the nitrogen in the human body carries the chemical signature of the Haber-Bosch process.\n\nMeasurement: Global food security index; kcal/person/day; nitrogen fertiliser production (tonnes/year).",
+                    "x": -250, "y": 380
+                },
+                {
+                    "id": "n9",
+                    "label": "Geopolitical\nConflict",
+                    "shape": "box",
+                    "color": { "background": "#FEE2E2", "border": "#EF4444" },
+                    "description": "Tensions and wars over remaining conventional oil reserves. ~60% of the world's remaining conventional oil sits inside a 600-mile triangle in southwest Asia. ~20% of global supply passes through the Strait of Hormuz. The West is simultaneously dependent on and in conflict with the geographies holding the world's future energy supply.\n\nMeasurement: Number of active conflicts in energy-producing regions; oil supply disruption events per year.",
+                    "x": 450, "y": 200
+                },
+                {
+                    "id": "n10",
+                    "label": "Energy\nBlindness",
+                    "shape": "box",
+                    "color": { "background": "#FEE2E2", "border": "#EF4444" },
+                    "description": "The cultural and academic failure to perceive energy as the primary driver of the economy. Three Nobel Prize–winning economists at the University of Chicago never once mentioned the word 'energy' as a contributor to economic productivity — because during their careers, the supply just kept growing. Money is treated as the real resource; energy is invisible infrastructure.\n\nMeasurement: Qualitative — absence of energy from mainstream economic models, political discourse, financial projections.",
+                    "x": 400, "y": 0
+                },
+                {
+                    "id": "n11",
+                    "label": "Technological\nEfficiency",
+                    "shape": "ellipse",
+                    "color": { "background": "#DBEAFE", "border": "#3B82F6" },
+                    "description": "Improvements in how energy is used per unit of output — LED bulbs, fuel-efficient engines, fracking technology, better insulation. Subject to Jevons Paradox: when we find a more efficient way to use a resource, we don't use less of it. We use more. Coal-efficient steam engines made coal available for more things, so demand exploded.\n\nMeasurement: Energy intensity of GDP (joules per dollar of output); improving over time but total consumption still rises.",
+                    "x": -200, "y": -380
+                },
+                {
+                    "id": "n12",
+                    "label": "Human\nMetabolism",
+                    "shape": "ellipse",
+                    "color": { "background": "#DBEAFE", "border": "#3B82F6" },
+                    "description": "Total energy consumed on behalf of each person via all systems — heating, transport, manufacturing, food systems, supply chains, lighting. The average American uses ~200,000 kcal/day, 100× the biological requirement of 2,000 kcal. You are living at a metabolic rate no organism in the history of life on Earth has ever sustained.\n\nMeasurement: Per-capita energy consumption (kWh/year or kcal/day); US average ~200,000 kcal/day.",
+                    "x": 300, "y": -100
+                },
+                {
+                    "id": "n13",
+                    "label": "Managed\nSimplification",
+                    "shape": "box",
+                    "color": { "background": "#D1FAE5", "border": "#10B981" },
+                    "description": "A conscious choice to scale back energy-intensive systems and reorient toward what actually matters — before the energy downslope forces chaotic involuntary simplification. Requires long-term foresight, political courage, and overcoming energy blindness as preconditions. 'If we remain energy blind and try to solve this with money and tech only, it's going to be chaotic, unequal, and devastating.'\n\nMeasurement: Policy adoption of degrowth frameworks; voluntary energy consumption reduction at national level.",
+                    "x": -600, "y": -200
+                },
+                {
+                    "id": "n14",
+                    "label": "Ancient\nSatisfactions",
+                    "shape": "box",
+                    "color": { "background": "#D1FAE5", "border": "#10B981" },
+                    "description": "Non-material wellbeing derived from community, purpose, nature, skills, relationships, belonging, and service to something beyond yourself. These satisfactions predate the Carbon Pulse by hundreds of thousands of years and do not require a barrel of oil. Psychological research is 'remarkably consistent': beyond basic needs, more stuff does not produce more wellbeing.\n\nMeasurement: Subjective wellbeing scores; social connection indices; time spent in nature/community.",
+                    "x": 300, "y": -350
+                },
+                {
+                    "id": "n15",
+                    "label": "Energy\nQuality Gap",
+                    "shape": "box",
+                    "color": { "background": "#FEE2E2", "border": "#EF4444" },
+                    "description": "The structural gap between oil's unique physical properties — energy-dense, liquid at room temperature, portable, storable, dispatchable — and intermittent renewable sources. Replacing oil is not a matter of matching kilowatt-hours. Mining, shipping, aviation, rail, and 6,000 petrochemical products have no credible fossil-free substitute. Organisms and economies optimise for power (energy per unit time), not just energy quantity.\n\nMeasurement: EROI (Energy Return on Investment); power density (W/m²) of competing sources.",
+                    "x": 50, "y": 400
+                },
+                {
+                    "id": "n16",
+                    "label": "Energy\nLiteracy",
+                    "shape": "box",
+                    "color": { "background": "#D1FAE5", "border": "#10B981" },
+                    "description": "The capacity to understand energy's foundational role in the economy and civilisation — that the economy runs on energy and material flows, that money is just a marker, and that the Carbon Pulse is a one-time inheritance rather than a permanent condition. The single highest-leverage intervention point in the system.\n\nMeasurement: Qualitative — inclusion of energy systems in mainstream economic/political education; public awareness surveys.",
+                    "x": -650, "y": -380
+                },
+                {
+                    "id": "n17",
+                    "label": "Social\nStability",
+                    "shape": "box",
+                    "color": { "background": "#FEE2E2", "border": "#EF4444" },
+                    "description": "The degree of social cohesion, political function, trust, and absence of conflict within and between societies. The key outcome variable of the Great Simplification scenario — the difference between a managed descent and chaotic collapse. Energy decline triggers political conflict, scapegoating, and short-term thinking at exactly the moment long-term foresight is required.\n\nMeasurement: Social cohesion indices; political stability scores; Gini coefficient; conflict incidence rates.",
+                    "x": 600, "y": -100
+                }
+            ];
+
+            const edgesData = [
+                // --- DEPLETION CORE ---
+                { "id": "e1", "from": "n2", "to": "n1", "label": "Depletes\n−\nLag: Immediate", "width": 7, "color": { "color": "#991B1B" }, "description": "Every barrel extracted permanently removes it from the finite stock of ancient solar energy. Shale requires drilling more wells faster just to keep production flat — the 'slurping sound' accelerates as easy oil is exhausted and we move to source rock." },
+                { "id": "e2", "from": "n1", "to": "n6", "label": "Scarcity raises price\n−\nLag: Years", "width": 6, "color": { "color": "#991B1B" }, "description": "Abundant, accessible reserves kept energy cheap for 200 years. As the high-quality easy-to-reach oil is exhausted, the marginal cost of extraction rises. This is the physical basis of the long-run energy price trend — not corporate behaviour." },
+
+                // --- BIOPHYSICAL OUROBOROS (R2) ---
+                { "id": "e3", "from": "n6", "to": "n5", "label": "Cost → print money\n+\nLag: Months", "width": 6, "color": { "color": "#1E40AF" }, "description": "When energy gets expensive, central banks print money and governments write guarantees to keep the system running. 'We can and will print money, but we cannot print energy.' Each crisis triggers another expansion of monetary claims." },
+                { "id": "e4", "from": "n5", "to": "n2", "label": "Cheap money\nfinances extraction\n+\nLag: Months–Years", "width": 6, "color": { "color": "#1E40AF" }, "description": "Low interest rates and abundant credit made expensive shale extraction temporarily viable — the US shale boom was as much a financial phenomenon as a geological one. When capital tightens, the financial scaffolding collapses and underlying depletion worsens." },
+
+                // --- CARBON PULSE GROWTH ENGINE (R1) ---
+                { "id": "e5", "from": "n2", "to": "n3", "label": "Energy → complexity\n+\nLag: Years–Decades", "width": 7, "color": { "color": "#1E40AF" }, "description": "Abundant cheap fossil energy is the prerequisite for every dimension of industrial complexity — global supply chains, modern medicine, industrial agriculture, electrification, the internet, and air travel. Complex systems depend on cheap energy; take the energy away and the complexity unravels." },
+                { "id": "e6", "from": "n3", "to": "n4", "label": "Complexity supports\npopulation\n+\nLag: Years–Decades", "width": 6, "color": { "color": "#1E40AF" }, "description": "Industrial agriculture feeds people who couldn't otherwise survive; modern medicine prevents deaths that would otherwise occur; clean water infrastructure serves billions. Haber-Bosch synthesis alone — natural gas → nitrogen fertiliser — feeds ~4 billion of the 8 billion alive today." },
+                { "id": "e7", "from": "n4", "to": "n12", "label": "More people =\nmore demand\n+\nLag: Immediate", "width": 5, "color": { "color": "#1E40AF" }, "description": "Even at constant per-capita consumption, more humans means more total energy demand across all systems. The Carbon Pulse simultaneously raised per-capita consumption AND headcount — a double driver of total metabolic demand." },
+                { "id": "e8", "from": "n12", "to": "n2", "label": "Demand drives\nextraction\n+\nLag: Years", "width": 6, "color": { "color": "#1E40AF" }, "description": "Total energy demand is the economic signal that makes extraction profitable. 500 billion human labour equivalents of fossil energy are consumed annually — a subsidy so enormous it is invisible to the people who depend on it." },
+
+                // --- JEVONS TRAP (R3) ---
+                { "id": "e9", "from": "n3", "to": "n11", "label": "Complexity generates\ntechnology\n+\nLag: Years", "width": 5, "color": { "color": "#1E40AF" }, "description": "Industrial complexity continuously produces technological improvement — from steam engines to LED bulbs to fracking. The same civilisational infrastructure that depends on cheap energy also generates the tools that seem to offer an efficiency escape." },
+                { "id": "e10", "from": "n11", "to": "n2", "label": "Efficiency → more uses\n(Jevons)\n+\nLag: Years", "width": 6, "color": { "color": "#1E40AF" }, "description": "Jevons Paradox: when we find a more efficient way to use a resource, we don't use less. We use more. Fuel-efficient engines made driving cheaper so we built suburbs further out. LED bulbs use less electricity per bulb so we put them everywhere. Efficiency expands the bounds of what we extract." },
+
+                // --- ECOLOGICAL BACKLASH (B1) ---
+                { "id": "e11", "from": "n2", "to": "n7", "label": "Burning → ecological\ndegradation\n−\nLag: Years–Decades", "width": 6, "color": { "color": "#991B1B" }, "description": "Burning fossil carbon at scale risks the biosphere's ability to function in ways that support future civilisation. The energy crisis and climate crisis are not separate problems — they are two faces of the same predicament. 70% of wildlife populations lost since 1970." },
+                { "id": "e12", "from": "n7", "to": "n8", "label": "Ecology supports\nfood systems\n+\nLag: Months–Years", "width": 5, "color": { "color": "#1E40AF" }, "description": "Healthy soils, stable climate, functional water cycles, and pollinator populations are the foundation of food production. Ecological degradation — soil erosion, climate disruption, aquifer depletion — directly undermines the agricultural systems that feed 8 billion." },
+                { "id": "e13", "from": "n8", "to": "n4", "label": "Food security\nsupports population\n+\nLag: Years–Decades", "width": 6, "color": { "color": "#1E40AF" }, "description": "The capacity to feed people is a hard biological floor on population. Haber-Bosch alone feeds ~4 billion — its failure (from natural gas shortage) would be immediate and catastrophic. Food security is the direct link between ecological health and human population." },
+
+                // --- DEPLETION CONSTRAINT (B2) ---
+                { "id": "e14", "from": "n6", "to": "n3", "label": "High cost unravels\ncomplexity\n−\nLag: Years", "width": 6, "color": { "color": "#991B1B" }, "description": "When energy gets tight, complexity unravels. Systems designed around cheap energy become uneconomic — global supply chains break, industrial processes shut down, services are cut. 'Cheap energy builds complex systems. Complex systems depend on cheap energy. When energy gets tight, complexity unravels.'" },
+
+                // --- ENERGY QUALITY GAP ---
+                { "id": "e15", "from": "n15", "to": "n2", "label": "No viable substitute\n→ more fossil\n+\nLag: Structural", "width": 5, "color": { "color": "#1E40AF" }, "description": "Because renewables cannot substitute for oil's energy density, portability, and storability in mining, shipping, aviation, and petrochemicals, the quality gap forces continued fossil extraction even as costs rise. Replacing oil is not a matter of matching kilowatt-hours — it requires matching power density and dispatchability." },
+
+                // --- GEOPOLITICS ---
+                { "id": "e16", "from": "n6", "to": "n9", "label": "Scarcity → conflict\n+\nLag: Months–Years", "width": 5, "color": { "color": "#1E40AF" }, "description": "Rising energy costs and supply scarcity intensify geopolitical competition for remaining reserves. The countries best positioned to supply oil at high flow rates in 20–30 years — Iran, Iraq, Russia — are the very ones the West is currently in conflict with." },
+                { "id": "e17", "from": "n9", "to": "n2", "label": "Conflict disrupts\nsupply\n−\nLag: Months–Years", "width": 5, "color": { "color": "#991B1B" }, "description": "Geopolitical conflict sanctions production, destroys infrastructure, and blocks chokepoints (e.g. Strait of Hormuz) — reducing available extraction even as underlying demand persists. The second and third-order effects of energy geopolitics are 'almost impossible to fully calculate.'" },
+
+                // --- ENERGY BLINDNESS (R4) ---
+                { "id": "e18", "from": "n10", "to": "n5", "label": "Blindness → more debt\n+\nLag: Years", "width": 6, "color": { "color": "#1E40AF" }, "description": "A culture blind to energy's role assumes permanent growth is possible and takes on long-term debts premised on a materially richer future. Every bond, pension, and mortgage embeds the assumption that the energy base will perpetually expand." },
+                { "id": "e19", "from": "n10", "to": "n13", "label": "Blindness blocks\nsimplification\n−\nLag: Years", "width": 6, "color": { "color": "#991B1B" }, "description": "You cannot choose a solution you cannot see. Energy blindness prevents the population and leadership from choosing managed simplification — seeing the predicament clearly is the necessary first step. 'If we remain energy blind and try to solve this with money and tech only, it's likely to be chaotic, unequal, and devastating.'" },
+                { "id": "e20", "from": "n5", "to": "n10", "label": "Financial system\ndeepens blindness\n+\nLag: Years–Decades", "width": 5, "color": { "color": "#1E40AF" }, "description": "A financial system premised on perpetual growth actively reinforces the worldview that growth is normal and permanent. When money creation is untethered from physical energy flows, it signals that the economy runs on money — not energy. The Ouroboros self-conceals." },
+
+                // --- ENERGY LITERACY INTERVENTIONS ---
+                { "id": "e21", "from": "n16", "to": "n10", "label": "Literacy breaks\nblindness\n−\nLag: Years–Decades", "width": 7, "color": { "color": "#991B1B" }, "description": "Understanding energy's foundational role — that the economy runs on energy and material flows, that money is just a marker — directly counters blindness. Education is the primary intervention: 'This is the lens that's missing from virtually all mainstream economic and political discussions.'" },
+                { "id": "e22", "from": "n16", "to": "n14", "label": "Understanding opens\ndoor to meaning\n+\nLag: Years", "width": 5, "color": { "color": "#1E40AF" }, "description": "Seeing that material consumption doesn't produce wellbeing — and that community, purpose, and connection predate the Carbon Pulse by hundreds of thousands of years — opens the door to meaning-based living. 'These are ancient satisfactions that do not require ancient sunlight.'" },
+                { "id": "e23", "from": "n16", "to": "n13", "label": "Literacy enables\nchoice\n+\nLag: Years", "width": 6, "color": { "color": "#1E40AF" }, "description": "People who understand the predicament can choose conscious simplification rather than waiting for chaotic forced simplification. The difference between 'the Great Simplification' as conscious navigation vs. 'the Great Collapse' as blindsided breakdown." },
+
+                // --- ANCIENT SATISFACTIONS ---
+                { "id": "e24", "from": "n14", "to": "n12", "label": "Meaning reduces\nmaterial demand\n−\nLag: Immediate–Months", "width": 6, "color": { "color": "#991B1B" }, "description": "Shifting toward community, purpose, nature, and connection — satisfactions that require no oil — directly reduces the energy-intensive pursuit of 'more stuff.' This is the demand-side intervention that attacks R1 at the source without requiring any change in technology or policy." },
+                { "id": "e25", "from": "n14", "to": "n17", "label": "Meaning builds\nresilience\n+\nLag: Months–Years", "width": 6, "color": { "color": "#1E40AF" }, "description": "Community, trust, collaboration, conflict resolution, and shared purpose are exactly the capacities needed to navigate the Great Simplification cooperatively. These 'muscles eroded away in the modern context' are the social infrastructure of a managed transition." },
+
+                // --- MANAGED SIMPLIFICATION ---
+                { "id": "e26", "from": "n13", "to": "n3", "label": "Intentional\nsimplification\n−\nLag: Years", "width": 6, "color": { "color": "#991B1B" }, "description": "Consciously scaling back energy-intensive systems — localising supply chains, reducing industrial agriculture's energy intensity, shifting infrastructure investment — reduces the complexity that depends on cheap fossil energy." },
+                { "id": "e27", "from": "n13", "to": "n12", "label": "Simplification reduces\nmetabolism\n−\nLag: Years", "width": 5, "color": { "color": "#991B1B" }, "description": "Managed simplification directly reduces aggregate per-capita energy demand by changing what systems exist and how people live — shrinking the 200,000 kcal/day American metabolic rate toward something biophysically sustainable." },
+
+                // --- SOCIAL STABILITY CONNECTIONS ---
+                { "id": "e28", "from": "n6", "to": "n17", "label": "Energy prices →\nsocial stress\n−\nLag: Months–Years", "width": 5, "color": { "color": "#991B1B" }, "description": "High energy prices create inflation, economic hardship, and political instability. Every industrial process was designed around cheap energy — when that assumption breaks, it cascades into food prices, heating costs, transport costs, and employment. Energy price spikes historically precede social disruption." },
+                { "id": "e29", "from": "n9", "to": "n17", "label": "Conflict reduces\nstability\n−\nLag: Immediate–Months", "width": 5, "color": { "color": "#991B1B" }, "description": "Geopolitical conflict directly reduces social stability — for populations in conflict zones and via global economic disruption, supply chain breakdown, and refugee flows. The second and third-order effects of energy geopolitics compound into social instability far beyond the conflict zone." }
+            ];
+
+            const savedFeedbackLoops = [
+                {
+                    "id": "R1",
+                    "name": "R1: The Carbon Pulse — Growth Engine",
+                    "type": "R",
+                    "description": "The engine of the Great Carbon Pulse. More extraction enables more industrial complexity, which supports a larger population, which increases total energy demand (human metabolism), which drives more extraction. This reinforcing loop produced the 1,000× expansion of the economy over 500 years and population growth from 1 to 8 billion. It runs as long as fossil reserves are accessible and cheap enough to support the complexity they enable.",
+                    "edgeIds": ["e5", "e6", "e7", "e8"],
+                    "nodeIds": ["n2", "n3", "n4", "n12"],
+                    "labelX": 30, "labelY": -170,
+                    "internalId": "loop-R1"
+                },
+                {
+                    "id": "R2",
+                    "name": "R2: The Biophysical Ouroboros",
+                    "type": "R",
+                    "description": "As energy gets expensive, money is printed to finance continued extraction. More extraction depletes reserves faster, which raises costs further, which demands more money printing. The loop masks depletion by making expensive extraction financially viable in the short term — at the cost of accelerating the eventual reckoning. 'We can print money. We cannot print energy. We can only extract it faster — and extracting it faster requires us to print more money.'",
+                    "edgeIds": ["e3", "e4", "e1", "e2"],
+                    "nodeIds": ["n6", "n5", "n2", "n1"],
+                    "labelX": -320, "labelY": 100,
+                    "internalId": "loop-R2"
+                },
+                {
+                    "id": "R3",
+                    "name": "R3: The Jevons Trap — Efficiency Paradox",
+                    "type": "R",
+                    "description": "Industrial complexity produces technological efficiency, which lowers effective energy cost and opens new uses, which increases total extraction, which sustains industrial complexity. Efficiency gains do not reduce total energy consumption — they expand what energy is used for. Coal-efficient steam engines didn't reduce coal consumption; they made coal available for more things and demand exploded. This is why technology alone cannot solve an energy and resource problem.",
+                    "edgeIds": ["e9", "e10", "e5"],
+                    "nodeIds": ["n3", "n11", "n2"],
+                    "labelX": -235, "labelY": -285,
+                    "internalId": "loop-R3"
+                },
+                {
+                    "id": "B1",
+                    "name": "B1: Ecological Backlash — The Biosphere's Brake",
+                    "type": "B",
+                    "description": "Fossil fuel extraction degrades ecological health, which undermines food security, which ultimately constrains the population that can be supported, which reduces total energy demand. The biosphere imposes a ceiling on the Carbon Pulse by degrading the ecological foundation that industrial complexity depends on. This loop is slow (decades) but inescapable — 70% of wildlife populations are already gone. The energy crisis and ecological crisis are two faces of the same predicament.",
+                    "edgeIds": ["e11", "e12", "e13", "e7", "e8"],
+                    "nodeIds": ["n2", "n7", "n8", "n4", "n12"],
+                    "labelX": -220, "labelY": 280,
+                    "internalId": "loop-B1"
+                },
+                {
+                    "id": "B2",
+                    "name": "B2: Depletion Constraint — The Great Simplification",
+                    "type": "B",
+                    "description": "Extraction depletes reserves, raising energy costs, which constrains industrial complexity, which reduces the population-support capacity and total energy demand, which slows extraction. This is the physical mechanism of the Great Simplification — the involuntary version. The question is only whether it unfolds slowly enough to be navigated consciously (managed simplification) or suddenly enough to produce chaotic collapse. The system is currently near the top of the bell curve.",
+                    "edgeIds": ["e1", "e2", "e14", "e6", "e7", "e8"],
+                    "nodeIds": ["n2", "n1", "n6", "n3", "n4", "n12"],
+                    "labelX": -450, "labelY": -90,
+                    "internalId": "loop-B2"
+                },
+                {
+                    "id": "R4",
+                    "name": "R4: Blindness–Debt Loop — The Invisible Trap",
+                    "type": "R",
+                    "description": "Energy blindness drives debt creation by assuming permanent growth is possible; the financial system premised on perpetual growth then deepens energy blindness by making growth appear normal and permanent. A self-sealing loop: the longer it runs, the more the population mistakes the exceptional Carbon Pulse for a permanent condition, and the larger the eventual debt reckoning. Breaking this loop — via energy literacy — is the single highest-leverage intervention in the system.",
+                    "edgeIds": ["e18", "e20"],
+                    "nodeIds": ["n10", "n5"],
+                    "labelX": 310, "labelY": 80,
+                    "internalId": "loop-R4"
+                }
+            ];
+
+            const systemArchetypes = [
+                {
+                    "id": "arch1",
+                    "name": "Limits to Growth",
+                    "description": "The three reinforcing growth loops (R1, R2, R3) drive civilisational expansion and energy demand growth. These loops are meeting two hard physical limits: Fossil Energy Reserves (n1) — the depletion constraint operating through B2 — and Ecological Health (n7) — the biosphere's brake operating through B1.\n\nThe system has been in the growth phase for 300 years and is approaching the constraint phase. The Limits to Growth archetype predicts that attempting to push through physical limits (via money printing, efficiency gains, or geopolitical force) accelerates the eventual contraction rather than preventing it. The Carbon Pulse bell curve is not a cliff — it is a slope; the Great Simplification is the question of how that slope is navigated.",
+                    "nodeIds": ["n1", "n2", "n3", "n4", "n7", "n12"],
+                    "edgeIds": ["e1", "e2", "e5", "e6", "e7", "e8", "e11", "e12", "e13", "e14"]
+                },
+                {
+                    "id": "arch2",
+                    "name": "Fixes that Fail",
+                    "description": "Money printing (n5) is the symptomatic fix applied to rising energy costs (n6). It temporarily solves the financial symptom by financing more extraction, but the side effect — faster reserve depletion — worsens the underlying problem on a delay. Each cycle of the Biophysical Ouroboros (R2) tightens the eventual reckoning while deferring it.\n\nThe same archetype applies to technological efficiency (R3 / Jevons Trap): efficiency is the symptomatic fix for energy scarcity, but it expands total demand rather than reducing it. Both fixes work until they don't — and by the time they fail, the underlying problem is substantially worse.",
+                    "nodeIds": ["n5", "n6", "n2", "n1", "n11", "n3"],
+                    "edgeIds": ["e3", "e4", "e1", "e2", "e9", "e10", "e5"]
+                },
+                {
+                    "id": "arch3",
+                    "name": "Shifting the Burden",
+                    "description": "Energy blindness (n10) allows a systematic shift of the burden to future generations. Rather than addressing the fundamental problem — a finite fossil energy base supporting infinite-growth financial and demographic structures — the system uses debt, technology, and geopolitical force as symptomatic solutions.\n\nLong-term debts, infrastructure build-outs, and population growth all assume a future that is 'bigger and materially richer than today.' This shifts the burden onto future people who will inherit depleted reserves, degraded ecology, destabilised climate, and intact debt obligations — and who did not participate in the decisions that created those obligations. The Great Simplification is, in part, a forced repayment of this shifted burden.",
+                    "nodeIds": ["n10", "n5", "n3", "n4", "n16", "n13"],
+                    "edgeIds": ["e18", "e19", "e20", "e21", "e23"]
+                }
+            ];
+
+            const loopInterpretations = new Map();
+            // END_DATA_BLOCK
+
+            // --- GLOBAL VARIABLES & SETUP ---
+            let feedbackLoops = []; // Will hold the active loop data
+            const nodes = new vis.DataSet(nodesArray);
+            // Create a map for quick label lookup - not currently used, but could be useful
+            // const nodeLabelMap = new Map(nodesArray.map(n => [n.id, n.label.replace(/\n/g, ' ')]));
+            const edges = new vis.DataSet(edgesData);
+            let loopLabelPositions = []; // Stores { loop, x, y, radius } for loop label hit detection and dragging
+
+            // --- Robust Loop Validation ---
+            function validateLoops(showSuccess = false) {
+                console.log("Validating feedback loop integrity...");
+                let allLoopsValid = true;
+                const errors = [];
+                const warnings = [];
+
+                // Check if feedbackLoops is a valid array
+                if (!Array.isArray(feedbackLoops)) {
+                     errors.push("`feedbackLoops` is not an array. Resetting to empty.");
+                     allLoopsValid = false;
+                     feedbackLoops = []; // Reset to prevent further errors
+                }
+
+                const loopIds = new Set(); // To check for duplicate loop IDs
+                const nodeIdsInData = new Set(nodes.getIds()); // Get all valid node IDs from the dataset
+                const edgeIdsInData = new Set(edges.getIds()); // Get all valid edge IDs from the dataset
+
+                feedbackLoops.forEach((loop, index) => {
+                    // Basic structure checks
+                    if (!loop || typeof loop !== 'object') {
+                        errors.push(`Loop structure invalid at index ${index}. Skipping.`);
+                        allLoopsValid = false;
+                        return; // Skip further checks for this invalid item
+                    }
+                    if (!loop.id || typeof loop.id !== 'string') { errors.push(`Loop at index ${index} is missing or has an invalid 'id'.`); allLoopsValid = false; }
+                    else if (loopIds.has(loop.id)) { errors.push(`Duplicate loop 'id' found: ${loop.id}. IDs must be unique after sorting.`); allLoopsValid = false; }
+                    else { loopIds.add(loop.id); }
+
+                    if (!loop.name || typeof loop.name !== 'string') { errors.push(`Loop ${loop.id || `at index ${index}`} is missing 'name'.`); allLoopsValid = false; }
+                    if (!loop.type || (loop.type !== 'R' && loop.type !== 'B')) { errors.push(`Loop ${loop.id || `at index ${index}`} has invalid or missing 'type' (must be 'R' or 'B').`); allLoopsValid = false; }
+                    if (!loop.internalId || typeof loop.internalId !== 'string') { errors.push(`Loop ${loop.id || `at index ${index}`} is missing internal tracking 'internalId'.`); allLoopsValid = false; }
+                    if (!Array.isArray(loop.nodeIds) || !Array.isArray(loop.edgeIds)) {
+                        errors.push(`Loop ${loop.id || `at index ${index}`} ('${loop.name}') is missing 'nodeIds' or 'edgeIds' array.`);
+                        allLoopsValid = false;
+                        return; // Cannot perform further checks without these arrays
+                    }
+                     if (loop.edgeIds.length === 0) {
+                         errors.push(`Loop ${loop.id || `at index ${index}`} ('${loop.name}') has an empty 'edgeIds' array.`);
+                         allLoopsValid = false;
+                         return; // Need edges to validate loop structure
+                     }
+
+
+                    // Check if all referenced nodes and edges actually exist in the main datasets
+                    loop.nodeIds.forEach(nodeId => { if (!nodeIdsInData.has(nodeId)) { errors.push(`Loop ${loop.id} ('${loop.name}') references non-existent node ID: ${nodeId}.`); allLoopsValid = false; } });
+                    loop.edgeIds.forEach(edgeId => { if (!edgeIdsInData.has(edgeId)) { errors.push(`Loop ${loop.id} ('${loop.name}') references non-existent edge ID: ${edgeId}.`); allLoopsValid = false; } });
+
+                    // More detailed check: Ensure the edges form a closed cycle using the listed nodes
+                    if (allLoopsValid && loop.nodeIds.length > 0 && loop.edgeIds.length > 0) { // Only if basic checks passed and arrays aren't empty
+                         const loopEdgesObjects = loop.edgeIds.map(id => edges.get(id)).filter(e => e); // Get edge objects, filter out nulls if IDs were invalid
+
+                         if (loopEdgesObjects.length !== loop.edgeIds.length) {
+                             // This case is already covered by the edge ID existence check above, but good as a safeguard
+                             return;
+                         }
+
+                         let startNode = loopEdgesObjects[0].from;
+                         let currentNode = startNode;
+                         const visitedEdges = new Set();
+                         let pathCorrect = true;
+                         const traversedNodes = new Set([startNode]);
+
+                         for (let i = 0; i < loopEdgesObjects.length; i++) {
+                             const possibleNextEdges = loopEdgesObjects.filter(e => e.from === currentNode && !visitedEdges.has(e.id));
+
+                             if (possibleNextEdges.length === 0) {
+                                errors.push(`Loop ${loop.id} ('${loop.name}') path broken: No available edge found starting from node '${currentNode}' (label: '${nodes.get(currentNode)?.label || 'Unknown'}'). Visited edges: ${Array.from(visitedEdges).join(', ')}`);
+                                pathCorrect = false;
+                                break;
+                             }
+                              if (possibleNextEdges.length > 1) {
+                                // This indicates a branch *within* the listed loop edges, which shouldn't happen in a simple cycle.
+                                warnings.push(`Loop ${loop.id} ('${loop.name}') might not be simple: Multiple edges (${possibleNextEdges.map(e => e.id).join(', ')}) originate from node '${currentNode}'. Ensure edgeIds define a single path.`);
+                                // Attempt to continue with the first one, but flag it.
+                              }
+
+                             const nextEdge = possibleNextEdges[0];
+                             visitedEdges.add(nextEdge.id);
+                             currentNode = nextEdge.to;
+                             traversedNodes.add(currentNode);
+                         }
+
+                         // Check closure
+                         if (pathCorrect && currentNode !== startNode) {
+                             errors.push(`Loop ${loop.id} ('${loop.name}') is not closed. Path ends at node '${currentNode}', expected start node '${startNode}'.`);
+                             allLoopsValid = false;
+                         }
+
+                         // Check if all listed edges were used
+                         if (pathCorrect && visitedEdges.size !== loop.edgeIds.length) {
+                             warnings.push(`Loop ${loop.id} ('${loop.name}'): Not all edges listed in 'edgeIds' were used in the traversal (${visitedEdges.size} used, ${loop.edgeIds.length} listed). Check for redundant edge IDs.`);
+                         }
+
+                         // Compare listed nodes vs traversed nodes
+                         const listedNodeSet = new Set(loop.nodeIds);
+                         if (pathCorrect && traversedNodes.size !== listedNodeSet.size) {
+                             warnings.push(`Loop ${loop.id} ('${loop.name}') node mismatch: ${traversedNodes.size} nodes traversed by edges, but ${listedNodeSet.size} unique nodes listed in 'nodeIds'.`);
+                             const listedButNotVisited = [...listedNodeSet].filter(n => !traversedNodes.has(n));
+                             const visitedButNotListed = [...traversedNodes].filter(n => !listedNodeSet.has(n));
+                             if (listedButNotVisited.length > 0) warnings.push(`   - Nodes listed but not visited: ${listedButNotVisited.map(id => `${id} ('${nodes.get(id)?.label || '??'}')`).join(', ')}`);
+                             if (visitedButNotListed.length > 0) warnings.push(`   - Nodes visited but not listed: ${visitedButNotListed.map(id => `${id} ('${nodes.get(id)?.label || '??'}')`).join(', ')}`);
+                         } else if (pathCorrect) {
+                             // If sizes match, ensure the sets are identical
+                             let setsMatch = true;
+                             for (const nodeId of listedNodeSet) {
+                                 if (!traversedNodes.has(nodeId)) {
+                                     warnings.push(`Loop ${loop.id} ('${loop.name}'): Node ${nodeId} ('${nodes.get(nodeId)?.label || '??'}') is listed in 'nodeIds' but not traversed by the edges.`);
+                                     setsMatch = false;
+                                 }
+                             }
+                             // This check might be redundant if sizes already matched, but included for thoroughness
+                             for (const nodeId of traversedNodes) {
+                                if (!listedNodeSet.has(nodeId)) {
+                                    warnings.push(`Loop ${loop.id} ('${loop.name}'): Node ${nodeId} ('${nodes.get(nodeId)?.label || '??'}') traversed by edges but not listed in 'nodeIds'.`);
+                                    setsMatch = false;
+                                }
+                             }
+                         }
+                    }
+                });
+
+                // --- Reporting ---
+                 if (errors.length > 0) {
+                     console.error(`❌ Loop Validation Failed with ${errors.length} error(s):`);
+                     errors.forEach(err => console.error(`   - ${err}`));
+                     allLoopsValid = false; // Ensure it's false if any errors occurred
+                 }
+                 if (warnings.length > 0) {
+                     console.warn(`⚠️ Loop Validation Found ${warnings.length} warning(s):`);
+                     warnings.forEach(warn => console.warn(`   - ${warn}`));
+                 }
+                 if (allLoopsValid && errors.length === 0 && showSuccess) {
+                     console.log("✅ All feedback loops appear structurally valid.");
+                 } else if (!allLoopsValid) {
+                     // Optionally show a user-facing message if validation fails critically
+                     // alert("Warning: Some feedback loops have structural errors. Check the console (F12) for details. Highlighting or interaction might be affected.");
+                 }
+                 return allLoopsValid;
+            }
+
+
+            // --- INITIALIZE FEEDBACK LOOPS ---
+            // Use saved loops if provided and valid, otherwise fallback (currently falls back to empty)
+            if (typeof savedFeedbackLoops !== 'undefined' && Array.isArray(savedFeedbackLoops)) {
+                // Ensure each loop has a unique internalId for tracking UI state, separate from the B#/R# ID
+                feedbackLoops = savedFeedbackLoops.map((l, index) => ({
+                    ...l,
+                    internalId: l.internalId || `loop-init-${index}-${Date.now()}-${Math.random().toString(16).substring(2, 8)}`
+                }));
+                console.log(`Loaded ${feedbackLoops.length} loops from savedFeedbackLoops array.`);
+            } else {
+                console.warn("`savedFeedbackLoops` array is missing, empty, or invalid. Loop functionality will rely on data integrity or might be limited.");
+                feedbackLoops = []; // Initialize as empty array if no valid saved data
+                // Potential future enhancement:
+                // feedbackLoops = findAllCyclesRobust(nodes.get(), edges.get(), loopInterpretations);
+            }
+
+            // Perform initial validation after loading/generating loops
+            validateLoops(true); // Show success message only if all are OK initially
+
+
+            // --- VIS.JS NETWORK INITIALIZATION ---
+            const container = document.getElementById('cldNetwork');
+            const data = { nodes: nodes, edges: edges };
+            const options = {
+                autoResize: true, height: '100%', width: '100%',
+                nodes: { // Default node styles
+                    shape: 'ellipse',
+                    size: 25, // Base size slightly smaller
+                    font: { size: 13, face: 'Inter, sans-serif', color: '#1F2937', multi: 'html', bold: { color: '#111827', size: 13, face: 'Inter, sans-serif', vadjust: 0 } },
+                    widthConstraint: { maximum: 160 }, // Max width before wrapping label
+                    borderWidth: 2, // Default border width
+                    color: { // Default color scheme (blue for non-stocks/flows)
+                        background: '#DBEAFE', border: '#3B82F6',
+                        highlight: { background: '#BFDBFE', border: '#2563EB' },
+                        hover: { background: '#BFDBFE', border: '#60A5FA' }
+                    },
+                    shadow: { enabled: true, size:4, x:2, y:2, color: 'rgba(0,0,0,0.08)'} // Subtle shadow
+                },
+                edges: { // Default edge styles
+                    width: 2.5, // Default width
+                    arrows: { to: { enabled: true, scaleFactor: 0.7, type: 'arrow' } },
+                    smooth: { enabled: true, type: "cubicBezier", roundness: 0.3 }, // Default smoothness
+                     chosen: { // Style when edge is selected (for recurving)
+                         edge: function(values, id, selected, hovering) {
+                             values.color = '#e11d48'; // Use a distinct color like pink/red
+                             values.width = values.width * 1.5;
+                             values.shadow = { enabled: true, color: 'rgba(225, 29, 72, 0.4)', size: 10, x: 0, y: 0 };
+                         },
+                         label: false // Don't change label style on selection
+                     },
+                     hoverWidth: function (width) { return width * 1.3;}, // Slightly increase width on hover
+                    font: { align: 'middle', multi: true, face: 'Inter, sans-serif', size: 12, color: '#4B5563', background: 'rgba(255,255,255,0.75)', strokeWidth: 0 } // Smaller font, slightly more background
+                },
+                physics: { enabled: false }, // Keep physics disabled unless layout needs adjusting
+                interaction: {
+                    hover: true, dragNodes: true, dragView: true, zoomView: true, tooltipDelay: 100, // Slightly longer tooltip delay
+                    navigationButtons: true, keyboard: { enabled: true, bindToWindow: true },
+                    selectable: true, selectConnectedEdges: false, // Important: keep false for edge recurve logic
+                    hoverConnectedEdges: false // Keep false for clarity
+                },
+                layout: { hierarchical: false } // No specific layout algorithm
+            };
+
+            // Store original styles to revert highlights - ENSURE DEEP COPIES are made correctly
+            const originalNodeStyles = {};
+            nodes.get({ returnType: "Array" }).forEach(node => {
+                 // Start with a deep copy of the default node color options
+                const baseColor = JSON.parse(JSON.stringify(options.nodes.color || {}));
+
+                // Override with specific node colors if they exist in the data
+                if (node.color && typeof node.color === 'object') {
+                     if (node.color.background !== undefined) baseColor.background = node.color.background;
+                     if (node.color.border !== undefined) baseColor.border = node.color.border;
+                     // Only copy highlight/hover if explicitly defined for the node, otherwise keep defaults from options
+                     if (node.color.highlight) baseColor.highlight = JSON.parse(JSON.stringify(node.color.highlight));
+                     else if (options.nodes.color.highlight) baseColor.highlight = JSON.parse(JSON.stringify(options.nodes.color.highlight)); // Keep default if node doesn't specify
+
+                     if (node.color.hover) baseColor.hover = JSON.parse(JSON.stringify(node.color.hover));
+                     else if (options.nodes.color.hover) baseColor.hover = JSON.parse(JSON.stringify(options.nodes.color.hover)); // Keep default if node doesn't specify
+
+                }
+
+                // Store the determined original style
+                originalNodeStyles[node.id] = {
+                    color: baseColor, // Now holds the specific or default colors, deeply copied
+                    shape: node.shape || options.nodes.shape, // Use specific or default shape
+                    borderWidth: node.borderWidth !== undefined ? node.borderWidth : options.nodes.borderWidth // Use specific or default border width
+                };
+            });
+
+
+            const originalEdgeStyles = {};
+            edges.get({ returnType: "Array" }).forEach(edge => {
+                // Deep copy colors and smooth settings
+                const edgeColor = edge.color ? JSON.parse(JSON.stringify(edge.color)) : JSON.parse(JSON.stringify(options.edges.color || {}));
+                const edgeSmooth = edge.smooth ? JSON.parse(JSON.stringify(edge.smooth)) : JSON.parse(JSON.stringify(options.edges.smooth || {}));
+
+                originalEdgeStyles[edge.id] = {
+                    width: edge.width !== undefined ? edge.width : options.edges.width,
+                    color: edgeColor,
+                    smooth: edgeSmooth
+                };
+            });
+
+            const network = new vis.Network(container, data, options);
+            const networkCanvas = container.querySelector('canvas');
+
+
+            // --- DOM ELEMENT REFERENCES ---
+            const loopListUL = document.getElementById('loopList');
+            const legendDiv = document.getElementById('legend');
+            const legendHeader = legendDiv.querySelector('h3');
+            const loopDescriptionDiv = document.getElementById('loopDescription');
+
+            const archetypeListUL = document.getElementById('archetypeList');
+            const archetypeLegendDiv = document.getElementById('archetypeLegend');
+            const archetypeLegendHeader = archetypeLegendDiv.querySelector('h3');
+            const archetypeDescriptionDiv = document.getElementById('archetypeDescription');
+
+            const modelTitleDisplay = document.getElementById('modelTitleDisplay');
+            const nodeTooltipDiv = document.getElementById('nodeTooltip');
+            const edgeTooltipDiv = document.getElementById('edgeTooltip');
+            const canvasTooltip = document.getElementById('canvasTooltip');
+            const contextMenu = document.getElementById('loopContextMenu');
+            const renameLoopOption = document.getElementById('renameLoopOption');
+            const editModal = document.getElementById('editModal');
+            const editNameInput = document.getElementById('editLoopNameInput');
+            const editDescriptionInput = document.getElementById('editLoopDescriptionInput');
+            const modalSaveBtn = document.getElementById('modalSaveBtn');
+            const modalCancelBtn = document.getElementById('modalCancelBtn');
+            const saveButton = document.getElementById('saveButton');
+            const saveModal = document.getElementById('saveModal');
+            const saveFilenameInput = document.getElementById('saveFilenameInput');
+            const modalSaveFileBtn = document.getElementById('modalSaveFileBtn');
+            const modalCancelSaveBtn = document.getElementById('modalCancelSaveBtn');
+
+            // Automatically adjust textarea height for loop name input
+            editNameInput.addEventListener('input', autoResizeTextarea);
+            function autoResizeTextarea() {
+                this.style.height = 'auto'; // Reset height
+                this.style.height = (this.scrollHeight) + 'px'; // Set to scroll height
+            }
+             // Initial resize in case of pre-filled content (though unlikely here)
+             autoResizeTextarea.call(editNameInput);
+
+
+            // --- SAVE FUNCTIONALITY (conditionally enabled) ---
+            // This logic allows saving when run within the editor environment.
+            // When opened as a standalone file, the save button remains hidden.
+            
+            // --- MODIFICATION ---
+            // The conditional 'if (window.self !== window.top ...)' has been REMOVED.
+            // The save button logic will now run in all environments (editor and saved file).
+            
+            saveButton.style.display = 'block'; // Make button visible
+
+            saveButton.addEventListener('click', () => {
+                saveFilenameInput.value = document.title || "causal_loop_diagram"; // Default title
+                saveModal.style.display = 'flex';
+                saveFilenameInput.focus();
+            });
+
+            modalCancelSaveBtn.addEventListener('click', () => {
+                saveModal.style.display = 'none';
+            });
+
+            modalSaveFileBtn.addEventListener('click', () => {
+                const newFilename = saveFilenameInput.value.trim();
+                if (newFilename) {
+                    network.storePositions(); // Ensure current positions are saved to the node objects
+
+                    // Get current data, including positions, and clean for saving
+                    // --- NODE CLEANUP (FIXED) ---
+                    const updatedNodesArray = nodes.get({ returnType: "Array" }).map(node => {
+                         const cleanNode = { ...node };
+                         
+                         // Round positions (state from canvas window)
+                         if (cleanNode.x !== undefined) cleanNode.x = Math.round(cleanNode.x);
+                         if (cleanNode.y !== undefined) cleanNode.y = Math.round(cleanNode.y);
+
+                         // Handle 'fixed' state (state from canvas window)
+                         // The dragEnd handler sets fixed: true. We want to save this.
+                         // If fixed is not present or is false, we can remove it to save space.
+                         if (!cleanNode.fixed) { // This covers undefined, null, and false
+                            delete cleanNode.fixed;
+                         }
+                         // Always remove 'physics' as it's a runtime property
+                         delete cleanNode.physics;
+
+                         // --- Optional cleanup of default properties ---
+                         // This part just makes the file smaller.
+                         if (cleanNode.shape === options.nodes.shape) {
+                             delete cleanNode.shape;
+                         }
+                         if (cleanNode.borderWidth === options.nodes.borderWidth) {
+                             delete cleanNode.borderWidth;
+                         }
+                         
+                         const defaultColor = options.nodes.color;
+                         if (cleanNode.color && typeof cleanNode.color === 'object' &&
+                             cleanNode.color.background === defaultColor.background &&
+                             cleanNode.color.border === defaultColor.border &&
+                             !cleanNode.color.highlight && !cleanNode.color.hover) {
+                             delete cleanNode.color;
+                         }
+
+                         return cleanNode;
+                    });
+
+                    // --- EDGE CLEANUP (TYPO FIXED) ---
+                    const updatedEdgesArray = edges.get({ returnType: "Array" }).map(edge => {
+                         const cleanEdge = { ...edge };
+                         // Remove vis.js internal state properties
+                         delete cleanEdge.title; // Ensure title (default tooltip) is removed
+                          delete cleanEdge.physics;
+                         // Remove default width if it matches
+                         if (cleanEdge.width === options.edges.width) delete cleanEdge.width;
+                         // Remove default smooth if it matches (deep compare needed for accuracy)
+                         if (JSON.stringify(cleanEdge.smooth) === JSON.stringify(options.edges.smooth)) delete cleanEdge.smooth;
+                         // Simple color check:
+                          if(cleanEdge.color && typeof cleanEdge.color === 'object' && !cleanEdge.color.highlight && !cleanEdge.color.hover && Object.keys(cleanEdge.color).length === 1 && cleanEdge.color.color) {
+                              // Keep only color.color if others are absent (assuming default highlight/hover)
+                          } else if (!cleanEdge.color) { // <--- TYPO FIX (was cleanNode)
+                              // If no color defined, it used default - can omit
+                          }
+
+                         return cleanEdge;
+                     });
+
+                     // Serialize current feedback loops state, excluding internalId
+                    const savedLoopsString = JSON.stringify(feedbackLoops, (key, value) => key === 'internalId' ? undefined : value, 4);
+
+                    // Serialize archetypes
+                    const savedArchetypesString = JSON.stringify(systemArchetypes, null, 4);
+
+
+                    // Get current HTML source
+                    let fullHtml = document.documentElement.outerHTML;
+
+                    // Ensure the save modal starts hidden in the saved file's source code.
+                    fullHtml = fullHtml.replace(
+                        /(id="saveModal".*?style=")([^"]*)(")/,
+                        (match, p1, p2, p3) => {
+                            let styles = p2.split(';').map(s => s.trim()).filter(Boolean);
+                            styles = styles.filter(style => !style.startsWith('display:')); // Remove existing display
+                            styles.push('display: none'); // Add display: none
+                            return `${p1}${styles.join('; ')}${p3}`;
+                        }
+                    );
+
+                   // Regex for data block and title
+                   const dataBlockRegex = /\/\/\s*START_DATA_BLOCK[\s\S]*?\/\/\s*END_DATA_BLOCK/;
+                   const titleRegex = /<title>[\s\S]*?<\/title>/;
+
+                   // Construct the new data block string
+                   // **MODIFICATION**: Ensure saved data block conforms to the new string ID format
+                   const newDataBlock = `// START_DATA_BLOCK
+            const nodesArray = ${JSON.stringify(updatedNodesArray, null, 4)};
+            const edgesData = ${JSON.stringify(updatedEdgesArray, null, 4)}.map(edge => ({ ...edge, title: undefined })); // Ensure vis.js default tooltips are disabled
+            const savedFeedbackLoops = ${savedLoopsString};
+            const systemArchetypes = ${savedArchetypesString};
+            // Placeholder for interpretations if needed
+            const loopInterpretations = new Map();
+            // END_DATA_BLOCK`;
+
+                   // Replace data block and title in the HTML string
+                   let newHtml = fullHtml.replace(dataBlockRegex, newDataBlock);
+                   newHtml = newHtml.replace(titleRegex, `<title>${newFilename.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>`); // Update title tag, basic sanitization
+
+                   // Trigger download
+                   const blob = new Blob([newHtml], { type: 'text/html;charset=utf-8' }); // Specify charset
+                   const url = URL.createObjectURL(blob);
+                   const a = document.createElement('a');
+                   a.href = url;
+                   // Sanitize filename more thoroughly
+                   let safeFilename = newFilename.replace(/[^a-z0-9 _\-]/gi, '_').replace(/_{2,}/g, '_').replace(/^_+|_+$/g, '');
+                   safeFilename = safeFilename || "causal_loop_diagram"; // Default if sanitization leaves empty string
+                   a.download = safeFilename + '.html';
+
+                   document.body.appendChild(a); // Append needed for Firefox
+                   a.click();
+                   document.body.removeChild(a); // Clean up
+                   URL.revokeObjectURL(url); // Release object URL memory
+                }
+                saveModal.style.display = 'none'; // Hide modal after saving or if filename empty
+            });
+            
+            // --- END MODIFICATION ---
+            // The 'else' block that previously hid the saveButton has been removed.
+
+
+            // --- UI INTERACTION VARIABLES ---
+            let selectedLoopInternalId = null;
+            let selectedArchetypeId = null;
+            let activeEdgeForRecurve = null;
+            let isRecurvingEdge = false;
+            let rightClickedLoopInternalId = null; // Store internalId for context menu actions
+            let draggedLoopLabel = null; // Stores the loop object being dragged
+            let dragLoopLabelOffset = { x: 0, y: 0 }; // Offset from mouse to label center during drag
+
+            // --- UI HELPER FUNCTIONS ---
+            // Wraps text intelligently to fit within a given width (approximated by maxLength)
+            function wrapText(text, maxLength = 35) { // Adjusted default max length for list items
+                if (!text || typeof text !== 'string') return '';
+                if (text.length <= maxLength) return text;
+
+                const words = text.split(' ');
+                let currentLine = '';
+                const lines = [];
+
+                for (const word of words) {
+                    // If adding the next word exceeds max length and the line isn't empty
+                    if ((currentLine + ' ' + word).length > maxLength && currentLine.length > 0) {
+                        lines.push(currentLine); // Finalize the current line
+                        currentLine = word; // Start new line with the current word
+                    } else {
+                        // Add word to the current line (with a space if needed)
+                        currentLine += (currentLine.length === 0 ? '' : ' ') + word;
+                    }
+                }
+                lines.push(currentLine); // Add the last line
+
+                return lines.join('\n'); // Return lines separated by newline characters
+            }
+
+
+            // Converts various color formats (hex, rgb) to an rgba string
+            function colorToRgba(colorInput, alpha) {
+                let r = 128, g = 128, b = 128; // Default to gray if parsing fails
+                alpha = Math.max(0, Math.min(1, alpha)); // Clamp alpha between 0 and 1
+
+                if (typeof colorInput === 'string') {
+                    const s = colorInput.toLowerCase().trim();
+                    if (s.startsWith('#')) {
+                        if (s.length === 4) { // #rgb format
+                            r = parseInt(s[1] + s[1], 16);
+                            g = parseInt(s[2] + s[2], 16);
+                            b = parseInt(s[3] + s[3], 16);
+                        } else if (s.length === 7) { // #rrggbb format
+                            r = parseInt(s.substring(1, 3), 16);
+                            g = parseInt(s.substring(3, 5), 16);
+                            b = parseInt(s.substring(5, 7), 16);
+                        }
+                    } else if (s.startsWith('rgb')) { // rgb() or rgba() format
+                        const parts = s.match(/[\d.]+/g);
+                        if (parts && parts.length >= 3) {
+                            r = parseInt(parts[0]);
+                            g = parseInt(parts[1]);
+                            b = parseInt(parts[2]);
+                            // Ignore alpha from input string, use the provided alpha parameter
+                        }
+                    }
+                     // Add handling for color names if needed, though less reliable
+                }
+                return `rgba(${r},${g},${b},${alpha})`;
+            }
+
+            // --- UI UPDATE FUNCTIONS ---
+            // Adjusts the vertical position of description boxes based on legend heights
+            function updateDescriptionPosition() {
+                const legendRect = legendDiv.getBoundingClientRect();
+                const archetypeRect = archetypeLegendDiv.getBoundingClientRect();
+                const containerRect = cldContainer.getBoundingClientRect(); // Get container bounds
+
+                if (loopDescriptionDiv.style.display === 'block') {
+                    const topPos = legendRect.bottom - containerRect.top + 10; // Position below loop legend
+                    loopDescriptionDiv.style.top = `${topPos}px`;
+                }
+                if (archetypeDescriptionDiv.style.display === 'block') {
+                    const topPos = archetypeRect.bottom - containerRect.top + 10; // Position below archetype legend
+                    archetypeDescriptionDiv.style.top = `${topPos}px`;
+                }
+            }
+
+
+            // Toggles the expanded/collapsed state of a legend and its description box
+            function toggleLegend(legendToToggle, descriptionEl) {
+                const isOpening = !legendToToggle.classList.contains('expanded');
+
+                // Close the *other* legend first if it's currently open
+                const otherLegend = legendToToggle === legendDiv ? archetypeLegendDiv : legendDiv;
+                const otherDescriptionEl = descriptionEl === loopDescriptionDiv ? archetypeDescriptionDiv : loopDescriptionDiv;
+                if (otherLegend.classList.contains('expanded')) {
+                    otherLegend.classList.remove('expanded');
+                    otherDescriptionEl.style.display = 'none'; // Hide its description
+                }
+
+                // Now toggle the clicked legend
+                if (isOpening) {
+                    legendToToggle.classList.add('expanded');
+                    const isLoopLegend = legendToToggle === legendDiv;
+                    // Show description only if the corresponding item type is selected
+                    if ((isLoopLegend && selectedLoopInternalId) || (!isLoopLegend && selectedArchetypeId)) {
+                        descriptionEl.style.display = 'block';
+                    }
+                } else {
+                    legendToToggle.classList.remove('expanded');
+                    descriptionEl.style.display = 'none'; // Always hide description when collapsing
+                }
+
+                // Recalculate positions after any height change
+                updateDescriptionPosition();
+            }
+
+
+            // Resets all node and edge styles to their original appearance, clears selections
+             function clearAllHighlightsAndDescriptions() {
+                selectedLoopInternalId = null;
+                selectedArchetypeId = null;
+                const nodesToRestore = [];
+                const edgesToRestore = [];
+
+                // Restore nodes
+                nodes.forEach(node => {
+                    const originalStyle = originalNodeStyles[node.id];
+                    if (originalStyle) {
+                        nodesToRestore.push({
+                            id: node.id,
+                            opacity: undefined, // Reset opacity
+                            color: JSON.parse(JSON.stringify(originalStyle.color)), // Deep copy original color object
+                            shape: originalStyle.shape,
+                            borderWidth: originalStyle.borderWidth,
+                            font: { // <-- ADDED
+                                color: options.nodes.font.color || '#1F2937' // Restore original font color
+                            }
+                        });
+                    }
+                });
+
+                // Restore edges
+                edges.forEach(edge => {
+                    const originalStyle = originalEdgeStyles[edge.id];
+                    if (originalStyle) {
+                        edgesToRestore.push({
+                            id: edge.id,
+                            width: originalStyle.width,
+                            color: JSON.parse(JSON.stringify(originalStyle.color)), // Deep copy original color object
+                            smooth: JSON.parse(JSON.stringify(originalStyle.smooth)), // Deep copy original smooth object
+                            shadow: undefined, // Remove chosen shadow
+                            font: { // <-- ADDED
+                                color: options.edges.font.color || '#4B5563', // Restore original font color
+                                background: options.edges.font.background || 'rgba(255,255,255,0.75)' // Restore original background
+                            }
+                        });
+                    }
+                });
+
+                // Batch update for performance
+                if (nodesToRestore.length > 0) nodes.update(nodesToRestore);
+                if (edgesToRestore.length > 0) edges.update(edgesToRestore);
+
+                // Hide UI elements
+                loopDescriptionDiv.style.display = 'none';
+                archetypeDescriptionDiv.style.display = 'none';
+                canvasTooltip.style.display = 'none';
+                document.querySelectorAll('.selected-item').forEach(el => el.classList.remove('selected-item')); // Remove selection class from lists
+
+                // Deselect any edge chosen for recurving
+                activeEdgeForRecurve = null;
+                network.selectEdges([]);
+            }
+
+
+            // Applies highlight styles to selected loop/archetype nodes/edges, dims others
+             function highlightSelection(item) {
+                if (!item || !item.nodeIds || !item.edgeIds) {
+                     console.warn("HighlightSelection called with invalid item:", item);
+                     clearAllHighlightsAndDescriptions(); // Reset if item is invalid
+                     return;
+                 }
+
+                // Start by clearing any previous state
+                clearAllHighlightsAndDescriptions();
+
+                const itemNodeIds = new Set(item.nodeIds);
+                const itemEdgeIds = new Set(item.edgeIds);
+                const nodesToUpdate = [];
+                const edgesToUpdate = [];
+                const highlightColor = '#e11d48'; // A distinct highlight color (rose-600)
+                const dimOpacity = 0.15; // Opacity for non-selected items
+
+                // Process Nodes
+                nodes.forEach(node => {
+                    const originalStyle = originalNodeStyles[node.id];
+                    if (!originalStyle) return; // Skip if original style wasn't stored
+
+                    if (itemNodeIds.has(node.id)) {
+                        // Highlight selected nodes: full opacity, thicker border, original colors
+                        nodesToUpdate.push({
+                            id: node.id,
+                            opacity: 1.0,
+                            color: JSON.parse(JSON.stringify(originalStyle.color)), // Ensure full color
+                            borderWidth: (originalStyle.borderWidth || options.nodes.borderWidth) * 1.7 // Make border thicker
+                        });
+                    } else {
+                        // Dim non-selected nodes
+                        nodesToUpdate.push({
+                            id: node.id,
+                            opacity: dimOpacity,
+                            // Dim the colors using rgba - use original colors as base
+                             color: {
+                                background: colorToRgba(originalStyle.color?.background, dimOpacity * 0.5), // Make background even fainter
+                                border: colorToRgba(originalStyle.color?.border, dimOpacity),
+                                highlight: { background: colorToRgba(originalStyle.color?.highlight?.background, dimOpacity * 0.5), border: colorToRgba(originalStyle.color?.highlight?.border, dimOpacity) },
+                                hover: { background: colorToRgba(originalStyle.color?.hover?.background, dimOpacity * 0.5), border: colorToRgba(originalStyle.color?.hover?.border, dimOpacity) }
+                             },
+                             font: { // Optionally dim the font too
+                                 color: colorToRgba(options.nodes.font.color || '#1F2937', dimOpacity)
+                             }
+                        });
+                    }
+                });
+
+                // Process Edges
+                edges.forEach(edge => {
+                    const originalStyle = originalEdgeStyles[edge.id];
+                    if (!originalStyle) return;
+
+                    if (itemEdgeIds.has(edge.id)) {
+                        // Highlight selected edges: thicker, bright color
+                        edgesToUpdate.push({
+                            id: edge.id,
+                            width: (originalStyle.width || options.edges.width) * 1.8,
+                            color: { color: highlightColor, highlight: highlightColor, hover: highlightColor }, // Use highlight color
+                            font: { // Make label slightly more prominent
+                                color: '#000000', // Black label text
+                                background: 'rgba(255, 255, 255, 0.9)' // More opaque background
+                            },
+                            opacity: 1.0,
+                            smooth: JSON.parse(JSON.stringify(originalStyle.smooth)) // Ensure smooth settings are kept
+                        });
+                    } else {
+                        // Dim non-selected edges
+                        const dimmedColor = colorToRgba(originalStyle.color?.color, dimOpacity * 0.8); // Slightly less dim than nodes
+                        edgesToUpdate.push({
+                            id: edge.id,
+                            width: (originalStyle.width || options.edges.width) * 0.8, // Slightly thinner
+                            color: { color: dimmedColor, highlight: dimmedColor, hover: dimmedColor },
+                            font: { // Dim the label
+                                 color: colorToRgba(options.edges.font.color || '#4B5563', dimOpacity * 0.5),
+                                 background: 'rgba(255, 255, 255, 0.2)' // Very transparent background
+                             },
+                            opacity: dimOpacity, // Apply dim opacity directly too
+                            smooth: JSON.parse(JSON.stringify(originalStyle.smooth)) // Ensure smooth settings are kept
+                        });
+                    }
+                });
+
+                // Apply updates
+                if (nodesToUpdate.length > 0) nodes.update(nodesToUpdate);
+                if (edgesToUpdate.length > 0) edges.update(edgesToUpdate);
+            }
+
+
+            // Selects a loop, highlights it, updates UI (list, description)
+            function selectLoop(loop) {
+                 if (!loop || !loop.internalId) {
+                     console.warn("Attempted to select invalid loop:", loop);
+                     return;
+                 }
+                const li = loopListUL.querySelector(`li[data-internal-id="${loop.internalId}"]`);
+                if (!li) {
+                     console.warn(`List item not found for loop internalId: ${loop.internalId}`);
+                     return;
+                 }
+
+                canvasTooltip.style.display = 'none'; // Hide canvas tooltip
+                const wasSelected = selectedLoopInternalId === loop.internalId;
+
+                // If it was already selected, deselect it
+                if (wasSelected) {
+                    clearAllHighlightsAndDescriptions();
+                    legendDiv.classList.remove('expanded'); // Close legend on deselect
+                } else {
+                    // Otherwise, select it (clearAllHighlights is called within highlightSelection)
+                    highlightSelection(loop);
+                    selectedLoopInternalId = loop.internalId;
+                    selectedArchetypeId = null; // Deselect archetype
+
+                    // Update UI elements
+                    li.classList.add('selected-item'); // Add selection class to list item
+                    loopDescriptionDiv.innerHTML = `<strong>${wrapText(loop.name).replace(/\n/g, ' ')}</strong><p>${(loop.description || 'No description available.').replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`; // Update description box
+
+                    // Ensure loop legend is open and archetype legend is closed
+                    if (!legendDiv.classList.contains('expanded')) {
+                        legendDiv.classList.add('expanded');
+                    }
+                    if (archetypeLegendDiv.classList.contains('expanded')) {
+                        archetypeLegendDiv.classList.remove('expanded');
+                        archetypeDescriptionDiv.style.display = 'none'; // Hide archetype desc
+                    }
+                    loopDescriptionDiv.style.display = 'block'; // Show loop desc
+                }
+                updateDescriptionPosition(); // Adjust description box position
+            }
+
+            // Selects an archetype, highlights it, updates UI (list, description)
+             function selectArchetype(archetype) {
+                if (!archetype || !archetype.id) {
+                     console.warn("Attempted to select invalid archetype:", archetype);
+                     return;
+                 }
+                const li = archetypeListUL.querySelector(`li[data-id="${archetype.id}"]`);
+                if (!li) {
+                     console.warn(`List item not found for archetype ID: ${archetype.id}`);
+                     return;
+                 }
+
+                canvasTooltip.style.display = 'none'; // Hide canvas tooltip
+                const wasSelected = selectedArchetypeId === archetype.id;
+
+                // If it was already selected, deselect it
+                if (wasSelected) {
+                    clearAllHighlightsAndDescriptions();
+                    archetypeLegendDiv.classList.remove('expanded'); // Close legend
+                } else {
+                    // Otherwise, select it
+                    highlightSelection(archetype);
+                    selectedArchetypeId = archetype.id;
+                    selectedLoopInternalId = null; // Deselect loop
+
+                    li.classList.add('selected-item');
+                    archetypeDescriptionDiv.innerHTML = `<strong>${archetype.name}</strong><p>${(archetype.description || 'No description available.').replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+
+                    // Ensure archetype legend is open and loop legend is closed
+                    if (!archetypeLegendDiv.classList.contains('expanded')) {
+                        archetypeLegendDiv.classList.add('expanded');
+                    }
+                    if (legendDiv.classList.contains('expanded')) {
+                        legendDiv.classList.remove('expanded');
+                        loopDescriptionDiv.style.display = 'none'; // Hide loop desc
+                    }
+                    archetypeDescriptionDiv.style.display = 'block'; // Show archetype desc
+                }
+                updateDescriptionPosition(); // Adjust description box position
+            }
+
+
+            // Renders the list items for feedback loops in the legend
+             function renderLoopList() {
+                loopListUL.innerHTML = ''; // Clear existing list
+                if (!Array.isArray(feedbackLoops) || feedbackLoops.length === 0) {
+                    loopListUL.innerHTML = "<li style='font-style: italic; color: #666;'>No feedback loops defined.</li>";
+                    return;
+                }
+
+                feedbackLoops.forEach(loop => {
+                    const li = document.createElement('li');
+                    li.dataset.internalId = loop.internalId; // Use internalId for reliable DOM reference
+                    li.setAttribute('draggable', true);
+
+                    // Display loop ID and wrapped name
+                    // **MODIFICATION**: Check for ':' in name. If not present, use loop.name directly.
+                    const loopIdSpan = `<span style="font-weight: bold; color: ${loop.type === 'R' ? '#be185d' : '#1e40af'}; margin-right: 5px;">${loop.id}:</span>`; // Color code ID
+                    const loopName = loop.name && loop.name.includes(':') ? loop.name.substring(loop.name.indexOf(':') + 1).trim() : (loop.name || 'Unnamed Loop');
+                    li.innerHTML = `${loopIdSpan} ${wrapText(loopName, 30).replace(/\n/g, '<br>')}`; // Wrap longer names
+
+                    // Add selected class if this loop is currently selected
+                    if (loop.internalId === selectedLoopInternalId) {
+                        li.classList.add('selected-item');
+                    }
+
+                    // Event listener for click selection
+                    li.addEventListener('click', (e) => {
+                        e.stopPropagation(); // Prevent triggering general click listeners
+                        selectLoop(loop);
+                    });
+
+                    // Event listener for context menu (right-click)
+                    li.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation(); // Prevent triggering network context menu
+                        rightClickedLoopInternalId = loop.internalId; // Store internalId
+                        contextMenu.style.top = `${e.clientY}px`;
+                        contextMenu.style.left = `${e.clientX}px`;
+                        contextMenu.style.display = 'block';
+                    });
+
+                    loopListUL.appendChild(li);
+                });
+            }
+
+
+            // Renders the list items for system archetypes in the legend
+             function renderArchetypeList() {
+                archetypeListUL.innerHTML = ''; // Clear existing list
+                if (!Array.isArray(systemArchetypes) || systemArchetypes.length === 0) {
+                    archetypeListUL.innerHTML = "<li style='font-style: italic; color: #666;'>No archetypes defined.</li>";
+                    return;
+                }
+
+                systemArchetypes.forEach(archetype => {
+                    const li = document.createElement('li');
+                    li.dataset.id = archetype.id; // Use archetype ID
+                    li.textContent = archetype.name || 'Unnamed Archetype'; // Display name
+
+                    if (archetype.id === selectedArchetypeId) {
+                        li.classList.add('selected-item'); // Mark if selected
+                    }
+
+                    // Event listener for click selection
+                    li.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        selectArchetype(archetype);
+                    });
+
+                    archetypeListUL.appendChild(li);
+                });
+            }
+
+
+            // Initial rendering of the loop and archetype lists
+            renderLoopList(); // This will be called *before* resequenceLoops, showing string IDs briefly
+            renderArchetypeList();
+
+            // --- DRAG AND DROP LOGIC FOR LOOP REORDERING ---
+            let draggedItem = null; // Reference to the list item being dragged
+
+            // Set draggable attribute and add dragging class on start
+            loopListUL.addEventListener('dragstart', e => {
+                if (e.target.tagName === 'LI') { // Ensure we're dragging a list item
+                    draggedItem = e.target;
+                    // Use setTimeout to allow the browser to render the drag image before adding class
+                    setTimeout(() => {
+                        if(draggedItem) draggedItem.classList.add('dragging');
+                    }, 0);
+                } else {
+                    e.preventDefault(); // Prevent dragging if not LI
+                }
+            });
+
+            // Remove dragging class on drag end
+            loopListUL.addEventListener('dragend', e => {
+                 if (draggedItem) {
+                    draggedItem.classList.remove('dragging');
+                 }
+                 // Clean up any lingering drag-over indicators
+                [...loopListUL.querySelectorAll('li')].forEach(item => item.classList.remove('drag-over-top', 'drag-over-bottom'));
+                draggedItem = null; // Clear reference
+            });
+
+            // Handle visual feedback during drag over
+            loopListUL.addEventListener('dragover', e => {
+                e.preventDefault(); // Necessary to allow dropping
+                if (!draggedItem) return; // Only process if dragging started within the list
+
+                const afterElement = getDragAfterElement(loopListUL, e.clientY);
+
+                // Clear previous indicators
+                [...loopListUL.querySelectorAll('li:not(.dragging)')].forEach(item => {
+                    item.classList.remove('drag-over-top', 'drag-over-bottom');
+                });
+
+                // Add indicator to the appropriate element
+                if (afterElement == null) { // If dragging to the end of the list
+                    const lastElement = loopListUL.querySelector('li:not(.dragging):last-child');
+                    if(lastElement) {
+                        lastElement.classList.add('drag-over-bottom');
+                    } else if (loopListUL.children.length === 1 && loopListUL.firstElementChild === draggedItem) {
+                         // Special case: dragging the only item, show indicator at top implicitly
+                    } else {
+                         // If list is empty except for dragged item, no indicator needed
+                    }
+                } else { // If dragging before another element
+                    afterElement.classList.add('drag-over-top');
+                }
+            });
+
+            // Handle the drop action: reorder the internal array and re-render
+            loopListUL.addEventListener('drop', e => {
+                e.preventDefault();
+                 if (!draggedItem) return; // Ensure an item was actually dragged
+
+                // Remove visual indicators
+                [...loopListUL.querySelectorAll('li')].forEach(item => item.classList.remove('drag-over-top', 'drag-over-bottom'));
+
+                const afterElement = getDragAfterElement(loopListUL, e.clientY); // Find where to drop
+                const draggedInternalId = draggedItem.dataset.internalId;
+
+                // Find the index of the dragged loop in the array
+                const draggedLoopIndex = feedbackLoops.findIndex(l => l.internalId === draggedInternalId);
+
+                if (draggedLoopIndex === -1) {
+                    console.error("Critical: Dragged loop internalId not found in feedbackLoops array.");
+                    draggedItem = null; // Reset drag state
+                    return;
+                }
+
+                // Remove the loop from its original position
+                const [draggedLoop] = feedbackLoops.splice(draggedLoopIndex, 1);
+
+                // Find the index where the loop should be inserted
+                if (afterElement == null) {
+                    feedbackLoops.push(draggedLoop); // Append to the end
+                } else {
+                    const targetInternalId = afterElement.dataset.internalId;
+                    const targetIndex = feedbackLoops.findIndex(l => l.internalId === targetInternalId);
+                    if (targetIndex !== -1) {
+                        feedbackLoops.splice(targetIndex, 0, draggedLoop); // Insert before the target element
+                    } else {
+                         console.error("Critical: Target drop element internalId not found. Re-inserting at original position (or end).");
+                         // Re-insert at original index or push to end as fallback
+                         feedbackLoops.splice(draggedLoopIndex, 0, draggedLoop);
+                    }
+                }
+
+                resequenceLoops(); // Update loop IDs (B1, R2...) and dependent descriptions
+                draggedItem = null; // Reset drag state
+            });
+
+            // Helper function to determine which list item is directly below the cursor's Y position
+            function getDragAfterElement(container, y) {
+                const draggableElements = [...container.querySelectorAll('li:not(.dragging)')]; // Get non-dragging siblings
+
+                return draggableElements.reduce((closest, child) => {
+                    const box = child.getBoundingClientRect();
+                    const offset = y - box.top - box.height / 2; // Distance from cursor to element center
+
+                    // If cursor is above the center and closer than previous closest
+                    if (offset < 0 && offset > closest.offset) {
+                        return { offset: offset, element: child };
+                    } else {
+                        return closest;
+                    }
+                }, { offset: Number.NEGATIVE_INFINITY }).element; // Start with negative infinity offset
+            }
+
+             // Resequences loop IDs (R1, B2, etc.) after reordering and updates names/descriptions
+            function resequenceLoops() {
+                const oldToNewIdMap = new Map(); // Tracks changes like { "quick_fix": "B1", "depletion_spiral": "R2" }
+                let loopCounter = 1; // Use a single counter for all loops
+                let idChanged = false; // Flag to check if any ID actually changed
+
+                // First pass: Determine the new ID for each loop based on its type and new position
+                feedbackLoops.forEach(loop => {
+                    const oldId = loop.id;
+                    const newId = `${loop.type}${loopCounter++}`; // Use single counter
+
+                    if (oldId !== newId) {
+                        oldToNewIdMap.set(oldId, newId); // Record the change (e.g., "quick_fix" -> "B1")
+                        idChanged = true;
+                    }
+                    loop._newId = newId; // Store temporarily
+                });
+
+                // If no IDs changed (e.g., list was already sorted or only one item moved to end, and IDs were already B1, R2)
+                if (!idChanged) {
+                    console.log("Resequence check: No loop IDs needed to be changed.");
+                    renderLoopList(); // Just re-render the list with current order
+                    network.redraw(); // Redraw canvas for loop labels (positions might be the same)
+                    // Clean up temp property just in case
+                    feedbackLoops.forEach(loop => delete loop._newId);
+                    return;
+                }
+                
+                console.log("Resequencing loops. ID map:", oldToNewIdMap);
+
+                // Second pass: Apply new IDs and update loop names consistently
+                feedbackLoops.forEach(loop => {
+                    const newId = loop._newId;
+                    const oldId = loop.id; // This is the string ID (e.g., "quick_fix") or an old B#/R# ID
+
+                    // Update the name:
+                    // Check if name already has a prefix THAT MATCHES THE OLD ID.
+                    const nameParts = loop.name ? loop.name.split(':') : [oldId]; // Split by ':'
+                    if (nameParts.length > 1 && nameParts[0].trim() === oldId) {
+                         // This handles re-sequencing, e.g. "B3: Name" -> "B2: Name"
+                        loop.name = newId + ':' + nameParts.slice(1).join(':').trim();
+                    } else if (!loop.name.startsWith(`${newId}:`)) {
+                        // This handles the initial sequencing, e.g. "The Quick Fix" -> "B1: The Quick Fix"
+                         loop.name = `${newId}: ${loop.name || 'Unnamed Loop'}`;
+                    }
+                    // Else: name might already be correct if only order changed
+                    
+                    loop.id = newId; // Apply the actual ID change (e.g., "quick_fix" becomes "B1")
+                    delete loop._newId; // Clean up temp property
+                });
+
+                // Third pass: Update descriptions in loops AND archetypes to reflect new loop IDs
+                const allItems = [...feedbackLoops, ...systemArchetypes];
+                allItems.forEach(item => {
+                    if (item.description) {
+                        let currentDesc = item.description;
+                        // Iterate through the ID changes and replace references
+                        // This replaces string IDs (e.g., "quick_fix") with B#/R# IDs (e.g., "B1")
+                        for (const [oldRef, newRef] of oldToNewIdMap.entries()) {
+                            // Use RegExp with word boundaries (\b) is tricky with "quick_fix"
+                            // Let's try replacing with quotes/apostrophes first
+                            currentDesc = currentDesc.replace(new RegExp(`'${oldRef}'`, 'g'), `'${newRef}'`);
+                            currentDesc = currentDesc.replace(new RegExp(`"${oldRef}"`, 'g'), `"${newRef}"`);
+                            // Also replace references like (via quick_fix) or (the 'quick_fix' loop)
+                            currentDesc = currentDesc.replace(new RegExp(`\\(via ${oldRef}\\)`, 'g'), `(via ${newRef})`);
+                            currentDesc = currentDesc.replace(new RegExp(`\\(${oldRef}\\)`, 'g'), `(${newRef})`);
+                             // More robustly, replace the reference to the name as well
+                            const oldLoop = savedFeedbackLoops.find(l => l.id === oldRef); // Find original name
+                            if(oldLoop) {
+                                currentDesc = currentDesc.replace(new RegExp(`'${oldLoop.name}'`, 'g'), `'${newRef}: ${oldLoop.name}'`);
+                                currentDesc = currentDesc.replace(new RegExp(`"${oldLoop.name}"`, 'g'), `"${newRef}: ${oldLoop.name}"`);
+                            }
+                        }
+                        item.description = currentDesc; // Update the item's description
+                    }
+                });
+
+                // Final UI Update: Re-render list, redraw canvas, update visible description boxes
+                renderLoopList();
+                network.redraw(); // Redraw canvas loop labels with new IDs
+
+                // Update description box if a re-sequenced loop was selected
+                 if (selectedLoopInternalId) {
+                    const selectedLoop = feedbackLoops.find(l => l.internalId === selectedLoopInternalId);
+                    if (selectedLoop && loopDescriptionDiv.style.display === 'block') {
+                        loopDescriptionDiv.innerHTML = `<strong>${wrapText(selectedLoop.name).replace(/\n/g, ' ')}</strong><p>${(selectedLoop.description || '').replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+                    }
+                 }
+                 // Update archetype description box if visible (might contain updated loop refs)
+                  if (selectedArchetypeId) {
+                     const selectedArch = systemArchetypes.find(a => a.id === selectedArchetypeId);
+                     if (selectedArch && archetypeDescriptionDiv.style.display === 'block') {
+                        archetypeDescriptionDiv.innerHTML = `<strong>${selectedArch.name}</strong><p>${(selectedArch.description || '').replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+                     }
+                 }
+                 console.log("Loops resequenced. New ID map:", Object.fromEntries(oldToNewIdMap));
+            }
+
+
+            // --- EVENT LISTENERS (UI Elements) ---
+            // Toggle legends open/closed when headers are clicked
+            if(legendHeader) legendHeader.addEventListener('click', (e) => { e.stopPropagation(); toggleLegend(legendDiv, loopDescriptionDiv); });
+            if(archetypeLegendHeader) archetypeLegendHeader.addEventListener('click', (e) => { e.stopPropagation(); toggleLegend(archetypeLegendDiv, archetypeDescriptionDiv); });
+
+            // Context Menu: Handle click on "Edit Loop Details"
+            renameLoopOption.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (rightClickedLoopInternalId) {
+                    const loopToEdit = feedbackLoops.find(l => l.internalId === rightClickedLoopInternalId);
+                    if (loopToEdit) {
+                        // Extract name part after the ID (e.g., "The Quick Fix" from "B1: The Quick Fix")
+                        const nameWithoutId = loopToEdit.name.includes(':')
+                            ? loopToEdit.name.substring(loopToEdit.name.indexOf(':') + 1).trim()
+                            : loopToEdit.name;
+
+                        editNameInput.value = nameWithoutId;
+                        editDescriptionInput.value = loopToEdit.description || ''; // Use empty string if no description
+                        editModal.style.display = 'flex'; // Show modal using flex for centering
+                        autoResizeTextarea.call(editNameInput); // Adjust textarea height
+                        editNameInput.focus(); // Focus the name input
+                    } else {
+                        console.error("Context menu target loop not found:", rightClickedLoopInternalId);
+                    }
+                }
+                contextMenu.style.display = 'none'; // Hide context menu after clicking
+            });
+
+            // Edit Modal: Handle Save button click
+            modalSaveBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const newName = editNameInput.value.trim(); // Get trimmed name
+                const newDescription = editDescriptionInput.value;
+
+                if (rightClickedLoopInternalId && newName) { // Ensure name is not empty
+                    const loopIndex = feedbackLoops.findIndex(l => l.internalId === rightClickedLoopInternalId);
+                    if (loopIndex > -1) {
+                        const loopToEdit = feedbackLoops[loopIndex];
+                        // Update loop data
+                        loopToEdit.name = `${loopToEdit.id}: ${newName}`; // Reconstruct name with ID
+                        loopToEdit.description = newDescription;
+
+                        // Update UI
+                        renderLoopList(); // Re-render the entire list to reflect changes
+                        network.redraw(); // Redraw canvas labels (name might affect tooltip)
+
+                        // If the edited loop is currently selected, update its description box content
+                        if (selectedLoopInternalId === rightClickedLoopInternalId) {
+                             loopDescriptionDiv.innerHTML = `<strong>${wrapText(loopToEdit.name).replace(/\n/g, ' ')}</strong><p>${(loopToEdit.description || '').replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+                             // Ensure it's visible if the legend is expanded
+                             if (legendDiv.classList.contains('expanded')) {
+                                loopDescriptionDiv.style.display = 'block';
+                                updateDescriptionPosition();
+                             }
+                        }
+
+                         // Update archetype descriptions potentially referencing the loop ID (already handled by resequence potentially, but good to check)
+                         // This is complex if names were used instead of IDs. Assuming IDs are primary references.
+                         console.log(`Loop ${loopToEdit.id} updated.`);
+
+                    } else {
+                        console.error("Loop to save not found:", rightClickedLoopInternalId);
+                    }
+                } else if (!newName) {
+                     console.warn("Loop name cannot be empty.");
+                     // Optionally provide visual feedback to the user in the modal
+                }
+                editModal.style.display = 'none'; // Hide modal
+                rightClickedLoopInternalId = null; // Clear context target
+            });
+
+            // Edit Modal: Handle Cancel button click
+            modalCancelBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                editModal.style.display = 'none';
+                rightClickedLoopInternalId = null; // Clear context target
+            });
+
+            // Edit Modal: Hide if background overlay is clicked
+            editModal.addEventListener('click', (e) => {
+                if (e.target === editModal) {
+                    editModal.style.display = 'none';
+                    rightClickedLoopInternalId = null; // Clear context target
+                }
+            });
+
+            // Global click listener to hide context menu if clicked outside
+            window.addEventListener('click', (e) => {
+                // Hide context menu if the click is not inside it
+                if (contextMenu.style.display === 'block' && !contextMenu.contains(e.target)) {
+                    contextMenu.style.display = 'none';
+                    rightClickedLoopInternalId = null; // Clear context target
+                }
+                 // Consider also closing description boxes or legends on empty canvas click (handled in network 'click')
+            });
+
+            // --- Network Event Listeners ---
+
+            // Show Node Tooltip on hover
+            network.on("hoverNode", function(params) {
+                const node = nodes.get(params.node);
+                if (node && node.description) {
+                    const nodePosition = network.getPositions([node.id])[node.id];
+                     if (!nodePosition) return; // Exit if position is not available yet
+                    const pos = network.canvas.canvasToDOM(nodePosition); // Convert network coords to DOM coords
+
+                    // Basic sanitation and formatting
+                    let descriptionText = (node.description || '').replace(/<script.*?>.*?<\/script>/gi, '');
+                    // --- MODIFICATION: Remove Measurement part before creating HTML ---
+                    descriptionText = descriptionText.split("\n\nMeasurement:")[0];
+                    // --- END MODIFICATION ---
+                    nodeTooltipDiv.innerHTML = descriptionText.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+
+                    // Position tooltip relative to the node
+                    nodeTooltipDiv.style.left = `${pos.x + 15}px`;
+                    nodeTooltipDiv.style.top = `${pos.y + 15}px`;
+                    nodeTooltipDiv.style.display = 'block';
+                }
+            });
+            // Hide Node Tooltip on blur
+            network.on("blurNode", function() { nodeTooltipDiv.style.display = 'none'; });
+
+            // Show Edge Tooltip on hover
+            network.on("hoverEdge", function(params) {
+                const edge = edges.get(params.edge);
+                 if (edge && edge.description) {
+                     // Basic sanitation and formatting
+                     let descriptionText = (edge.description || '').replace(/<script.*?>.*?<\/script>/gi, '');
+                    // --- MODIFICATION: Remove Measurement part before creating HTML ---
+                    descriptionText = descriptionText.split("\n\nMeasurement:")[0];
+                    // --- END MODIFICATION ---
+                    edgeTooltipDiv.innerHTML = descriptionText.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
+
+                    // Position tooltip relative to the mouse pointer
+                    edgeTooltipDiv.style.left = `${params.pointer.DOM.x + 15}px`;
+                    edgeTooltipDiv.style.top = `${params.pointer.DOM.y + 15}px`;
+                    edgeTooltipDiv.style.display = 'block';
+                }
+            });
+             // Hide Edge Tooltip on blur
+            network.on("blurEdge", function() { edgeTooltipDiv.style.display = 'none'; });
+
+            // Hide all tooltips when dragging stops
+            network.on("dragEnd", function(params) {
+                 nodeTooltipDiv.style.display = 'none';
+                 edgeTooltipDiv.style.display = 'none';
+                 canvasTooltip.style.display = 'none'; // Hide loop label tooltip too
+                 window.lastDragEndTime = Date.now(); // Record time to help differentiate drag end from click
+
+                 // If nodes were dragged, fix them at the new position
+                 if (params.nodes && params.nodes.length > 0 && !isRecurvingEdge) {
+                     const positions = network.getPositions(params.nodes);
+                     const updates = params.nodes.map(nodeId => {
+                         const pos = positions[nodeId];
+                         // Update node data with new position and set fixed to true
+                         return pos ? { id: nodeId, x: Math.round(pos.x), y: Math.round(pos.y), fixed: true } : null; // Use fixed: true for vis.js persistence
+                     }).filter(Boolean); // Filter out nulls if position wasn't found
+                     if (updates.length > 0) {
+                         nodes.update(updates);
+                         console.log(`Node(s) ${params.nodes.join(', ')} position updated and fixed.`);
+                     }
+                 }
+            });
+
+
+            // Calculate the geometric centroid of a loop's nodes in canvas coordinates
+            function calculateLoopCentroid(loop) {
+                if (!loop || !Array.isArray(loop.nodeIds) || loop.nodeIds.length === 0) {
+                     return { x: 0, y: 0 }; // Default or error position
+                }
+                const positions = network.getPositions(loop.nodeIds); // Returns map { nodeId: {x, y} }
+                let sumX = 0, sumY = 0;
+                let validNodesCount = 0;
+                loop.nodeIds.forEach(nodeId => {
+                     const pos = positions[nodeId];
+                     if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') { // Check if position is valid
+                        sumX += pos.x;
+                        sumY += pos.y;
+                        validNodesCount++;
+                     } else {
+                         console.warn(`Position not found or invalid for node ${nodeId} in loop ${loop.id}`);
+                     }
+                });
+                // Return average position or default if no valid nodes found
+                return validNodesCount > 0 ? { x: sumX / validNodesCount, y: sumY / validNodesCount } : { x: 0, y: 0 };
+            }
+
+
+            // --- CANVAS DRAWING & INTERACTIONS ---
+
+            // Draw loop labels after the main network drawing pass
+            network.on("afterDrawing", function(ctx) {
+                loopLabelPositions = []; // Clear previous label positions for hit detection
+                const labelRadius = 18; // Slightly smaller radius
+                const fontSize = 13; // Font size for ID inside circle
+                ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                feedbackLoops.forEach(loop => {
+                    // Initialize or update label position if missing or invalid
+                    if (loop.labelX === undefined || loop.labelY === undefined || isNaN(loop.labelX) || isNaN(loop.labelY)) {
+                        const centroid = calculateLoopCentroid(loop);
+                        loop.labelX = centroid.x;
+                        loop.labelY = centroid.y;
+                    }
+
+                    const position = { x: loop.labelX, y: loop.labelY };
+
+                    // Determine background color based on loop type (R/B)
+                    const bgColor = loop.type === 'R' ? 'rgba(190, 24, 93, 0.9)' : 'rgba(30, 64, 175, 0.9)'; // Rose vs Indigo
+
+                    // Draw the filled circle background
+                    ctx.fillStyle = bgColor;
+                    ctx.beginPath();
+                    ctx.arc(position.x, position.y, labelRadius, 0, 2 * Math.PI, false);
+                    ctx.fill();
+
+                    // Draw a subtle white border
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    // Draw the loop ID text (e.g., "B1", "R2") in white
+                    ctx.fillStyle = 'white';
+                    ctx.fillText(loop.id, position.x, position.y + 1); // Slight vertical adjustment if needed
+
+                    // Store the calculated position and radius for mouse interaction checks
+                    loopLabelPositions.push({ loop: loop, x: position.x, y: position.y, radius: labelRadius });
+                });
+            });
+
+
+            // --- CANVAS MOUSE EVENT HANDLING ---
+
+            // Handle mouse movement over the canvas (for loop label tooltips and dragging)
+            networkCanvas.addEventListener('mousemove', function(e) {
+                const rect = networkCanvas.getBoundingClientRect();
+                // Calculate mouse position relative to canvas, then convert to network coordinates
+                const canvasPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                const networkPos = network.canvas.DOMtoCanvas(canvasPos);
+
+                // If currently dragging a loop label, update its position and redraw
+                if (draggedLoopLabel) {
+                    draggedLoopLabel.labelX = networkPos.x - dragLoopLabelOffset.x;
+                    draggedLoopLabel.labelY = networkPos.y - dragLoopLabelOffset.y;
+                    network.redraw(); // Redraw to show label moving
+                    return; // Stop further processing (like hover checks) while dragging
+                }
+
+                // Check if the mouse is hovering over any loop label circle
+                let hoveredLoop = null;
+                // Iterate backwards to prioritize labels drawn later (visually on top)
+                for (let i = loopLabelPositions.length - 1; i >= 0; i--) {
+                     const pos = loopLabelPositions[i];
+                     const dx = networkPos.x - pos.x;
+                     const dy = networkPos.y - pos.y;
+                     // Simple circle collision check
+                     if (dx * dx + dy * dy < pos.radius * pos.radius) {
+                         hoveredLoop = pos.loop;
+                         break; // Found the topmost hovered loop
+                     }
+                 }
+
+                // Update cursor style and display tooltip based on hover state
+                if (hoveredLoop) {
+                    networkCanvas.style.cursor = 'grab'; // Indicate it's draggable
+                    // Sanitize and format tooltip content
+                     const sanitizedName = (hoveredLoop.name || '').replace(/<script.*?>.*?<\/script>/gi, '');
+                     const sanitizedDescription = (hoveredLoop.description || 'No description.').replace(/<script.*?>.*?<\/script>/gi, '');
+                     canvasTooltip.innerHTML = `<strong>${sanitizedName.replace(/\n/g, ' ')}</strong><p>${sanitizedDescription.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`;
+
+                    // Position tooltip near the mouse cursor
+                    canvasTooltip.style.left = `${e.clientX + 15}px`; // DOM coordinates
+                    canvasTooltip.style.top = `${e.clientY + 15}px`; // DOM coordinates
+                    canvasTooltip.style.display = 'block';
+                } else {
+                    networkCanvas.style.cursor = 'default'; // Reset cursor
+                    canvasTooltip.style.display = 'none'; // Hide tooltip
+                }
+            });
+
+
+            // Handle clicks on the network canvas
+            network.on("click", function(params) {
+                // Prevent click action if it happens immediately after a drag operation ends
+                if (Date.now() - (window.lastDragEndTime || 0) < 200) { // Increased delay slightly
+                    console.log("Click ignored shortly after drag.");
+                    return;
+                }
+
+                const networkPos = params.pointer.canvas; // Network coordinates of the click
+                let clickedLoop = null;
+
+                // Check if the click landed inside any loop label circle
+                for (const pos of loopLabelPositions) {
+                    const dx = networkPos.x - pos.x;
+                    const dy = networkPos.y - pos.y;
+                    if (dx * dx + dy * dy < pos.radius * pos.radius) {
+                        clickedLoop = pos.loop;
+                        break;
+                    }
+                }
+
+                // If a loop label was clicked, handle loop selection/deselection
+                if (clickedLoop) {
+                    selectLoop(clickedLoop);
+                    return; // Prevent other click actions (like clearing selection)
+                }
+
+                // --- Click Handling for Edges (Recurve Activation) and Empty Space ---
+                if (params.nodes.length === 0) { // Click was not on a node
+                    if (params.edges.length > 0) { // Click was on an edge
+                        const clickedEdgeId = params.edges[0];
+                        // Toggle the active edge for recurving
+                        activeEdgeForRecurve = (activeEdgeForRecurve === clickedEdgeId) ? null : clickedEdgeId;
+
+                        // If activating an edge, clear any loop/archetype selection
+                        if (activeEdgeForRecurve && (selectedLoopInternalId || selectedArchetypeId)) {
+                             clearAllHighlightsAndDescriptions(); // This also calls network.selectEdges([]) implicitly
+                        } else {
+                             // Update visual selection state for the edge
+                             network.selectEdges(activeEdgeForRecurve ? [activeEdgeForRecurve] : []);
+                        }
+                        console.log(activeEdgeForRecurve ? `Edge ${activeEdgeForRecurve} selected for recurving.` : "Edge recurve deselected.");
+
+                    } else { // Click was on empty canvas space
+                        clearAllHighlightsAndDescriptions(); // Clear highlights, selections, descriptions
+                        // Close any open legends
+                        legendDiv.classList.remove('expanded');
+                        archetypeLegendDiv.classList.remove('expanded');
+                        updateDescriptionPosition(); // Update description positions (effectively hides them)
+                        console.log("Selection cleared.");
+                    }
+                } else { // Click was on a node
+                    // Deactivate edge recurving if a node is clicked
+                    if (activeEdgeForRecurve) {
+                        activeEdgeForRecurve = null;
+                        network.selectEdges([]); // Deselect the edge visually
+                        console.log("Edge recurve deselected due to node click.");
+                    }
+                    // Allow normal node selection behavior to proceed (if any)
+                }
+            });
+
+
+            // Mouse down on canvas: Starts loop label dragging or edge recurving drag
+            if (networkCanvas) {
+                networkCanvas.addEventListener('mousedown', function(event) {
+                    const rect = networkCanvas.getBoundingClientRect();
+                    const canvasPos = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+                    const networkPos = network.canvas.DOMtoCanvas(canvasPos);
+
+                    // Check if starting a loop label drag
+                     // Iterate backwards for Z-index priority
+                    for (let i = loopLabelPositions.length - 1; i >= 0; i--) {
+                        const pos = loopLabelPositions[i];
+                        const dx = networkPos.x - pos.x;
+                        const dy = networkPos.y - pos.y;
+                        if (dx * dx + dy * dy < pos.radius * pos.radius) {
+                            draggedLoopLabel = pos.loop; // Store the loop object being dragged
+                            // Calculate offset from click point to label center
+                            dragLoopLabelOffset.x = networkPos.x - pos.x;
+                            dragLoopLabelOffset.y = networkPos.y - pos.y;
+                            networkCanvas.style.cursor = 'grabbing'; // Indicate dragging
+                            network.setOptions({ interaction: { dragNodes: false, dragView: false } }); // Disable default network dragging
+                            event.preventDefault(); // Prevent text selection or other defaults
+                            console.log(`Dragging loop label: ${draggedLoopLabel.id}`);
+                            return; // Don't check for edge recurve if dragging label
+                        }
+                    }
+
+                    // Check if starting an edge recurve drag
+                    if (activeEdgeForRecurve && !isRecurvingEdge) {
+                        isRecurvingEdge = true;
+                        console.log(`Starting recurve drag for edge: ${activeEdgeForRecurve}`);
+                        // Add temporary listeners to the *document* to capture mouse movements globally
+                        document.addEventListener('mousemove', handleMouseMoveOnDocumentForRecurve);
+                        document.addEventListener('mouseup', handleMouseUpOnDocumentForRecurve, { once: true }); // Remove after first mouseup
+                        network.setOptions({ interaction: { dragNodes: false, dragView: false } }); // Disable network dragging
+                        event.preventDefault();
+                    }
+                });
+
+                // Mouse up on canvas: Finishes a loop label drag
+                networkCanvas.addEventListener('mouseup', function(e) {
+                    if (draggedLoopLabel) {
+                        console.log(`Finished dragging loop label: ${draggedLoopLabel.id}`);
+                        window.lastDragEndTime = Date.now(); // Mark drag end time
+                        draggedLoopLabel = null; // Clear the dragged label reference
+                        networkCanvas.style.cursor = 'grab'; // Reset cursor (hover state will adjust if needed)
+                        network.setOptions({ interaction: { dragNodes: true, dragView: true } }); // Re-enable network dragging
+                    }
+                    // Edge recurve mouseup is handled by the document listener
+                });
+
+                 // Mouse leaving canvas area: Cancel active drags
+                networkCanvas.addEventListener('mouseleave', function(e) {
+                    // If dragging a loop label, stop the drag
+                    if (draggedLoopLabel) {
+                        console.log(`Loop label drag cancelled (mouse left canvas): ${draggedLoopLabel.id}`);
+                        window.lastDragEndTime = Date.now();
+                        draggedLoopLabel = null;
+                        networkCanvas.style.cursor = 'default';
+                        network.setOptions({ interaction: { dragNodes: true, dragView: true } });
+                    }
+                    // Hide any canvas-based tooltips when leaving
+                    canvasTooltip.style.display = 'none';
+                    // Note: Edge recurving mouse up/leave is handled by the document listener
+                });
+            }
+
+
+            // --- EDGE RECURVE HANDLERS (attached to document during drag) ---
+
+            // Handles mouse movement *anywhere* on the page while recurving an edge
+             function handleMouseMoveOnDocumentForRecurve(event) {
+                if (!isRecurvingEdge || !activeEdgeForRecurve) return; // Should not happen if logic is correct
+
+                 // Convert global mouse coordinates to network canvas coordinates
+                const rect = networkCanvas.getBoundingClientRect();
+                const domPos = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+                const mousePos = network.canvas.DOMtoCanvas(domPos);
+
+                const edge = edges.get(activeEdgeForRecurve);
+                if (!edge) { handleMouseUpOnDocumentForRecurve(); return; } // Edge might have been deleted
+
+                // Get positions of the connected nodes
+                const positions = network.getPositions([edge.from, edge.to]);
+                const fromPos = positions[edge.from];
+                const toPos = positions[edge.to];
+                if (!fromPos || !toPos) { handleMouseUpOnDocumentForRecurve(); return;} // Nodes might have been deleted
+
+                // Calculate edge midpoint and vector from midpoint to mouse
+                const midX = (fromPos.x + toPos.x) / 2;
+                const midY = (fromPos.y + toPos.y) / 2;
+                const dxMouse = mousePos.x - midX; // Vector from midpoint to mouse X
+                const dyMouse = mousePos.y - midY; // Vector from midpoint to mouse Y
+
+                // Calculate edge vector and length
+                const edgeDx = toPos.x - fromPos.x;
+                const edgeDy = toPos.y - fromPos.y;
+                const edgeLength = Math.sqrt(edgeDx*edgeDx + edgeDy*edgeDy);
+                if (edgeLength < 1) return; // Avoid division by zero for very short/overlapping nodes
+
+                // Determine curve direction using cross product (orientation)
+                // (edgeDx * dyMouse) - (edgeDy * dxMouse) > 0 means CCW
+                const orientation = (edgeDx * dyMouse) - (edgeDy * dxMouse);
+                const newCurveType = orientation >= 0 ? 'curvedCCW' : 'curvedCW'; // Use >= 0 for consistency if exactly on line
+
+                // Calculate perpendicular distance from mouse to the edge line segment for better roundness control
+                // Using distance from midpoint as simpler approximation:
+                const distFromMid = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+
+                // Calculate roundness: Normalize distance by edge length, apply scaling factor
+                // Clamp values to prevent extreme curves
+                const scaleFactor = 0.8; // Adjust this to control sensitivity
+                let newRoundness = Math.max(0.01, Math.min(0.95, (distFromMid / edgeLength) * scaleFactor));
+
+                // Update the edge's smooth properties in the dataset
+                edges.update({
+                    id: activeEdgeForRecurve,
+                    smooth: { type: newCurveType, roundness: newRoundness, enabled: true }
+                });
+
+                 // Also update the 'original' style immediately so that if the user
+                 // deselects, the new curve is kept, not reverted.
+                 if(originalEdgeStyles[activeEdgeForRecurve]) {
+                    originalEdgeStyles[activeEdgeForRecurve].smooth = { type: newCurveType, roundness: newRoundness, enabled: true };
+                 }
+            }
+
+            // Handles mouse release *anywhere* on the page to end edge recurving
+            function handleMouseUpOnDocumentForRecurve() {
+                if (!isRecurvingEdge) return; // Prevent multiple calls
+                console.log(`Finished recurve drag for edge: ${activeEdgeForRecurve}`);
+
+                isRecurvingEdge = false;
+                // Remove the global listeners immediately
+                document.removeEventListener('mousemove', handleMouseMoveOnDocumentForRecurve);
+                // mouseup listener removed itself via {once: true}
+
+                network.setOptions({ interaction: { dragNodes: true, dragView: true } }); // Re-enable network interaction
+                window.lastDragEndTime = Date.now(); // Record drag end time
+
+                // Store the ID before clearing, then deselect visually and reset state
+                const edgeIdToFinalize = activeEdgeForRecurve;
+                activeEdgeForRecurve = null;
+                network.selectEdges([]); // Clear visual selection
+
+                 // Optional: Could add a small debounce here if needed, but usually direct update is fine
+                 // The edge data is already updated in the mousemove handler.
+                 // We could potentially finalize the 'originalEdgeStyles' update here if not done in mousemove.
+            }
+
+
+            // --- NODE DRAG HANDLERS ---
+            // When starting to drag a node, temporarily unfix it
+            network.on("dragStart", function(params) {
+                 // Check if the drag involves nodes and we are not in edge recurving mode
+                if (params.nodes && params.nodes.length > 0 && !isRecurvingEdge) {
+                     // Unfix all nodes being dragged
+                     const updates = params.nodes.map(nodeId => ({ id: nodeId, fixed: false })); // Use fixed: false
+                     if (updates.length > 0) {
+                         nodes.update(updates);
+                         console.log(`Unfixing node(s) for drag: ${params.nodes.join(', ')}`);
+                     }
+                 }
+                 // Hide tooltips during drag
+                 nodeTooltipDiv.style.display = 'none';
+                 edgeTooltipDiv.style.display = 'none';
+                 canvasTooltip.style.display = 'none';
+            });
+
+
+            // --- INITIALIZATION ---
+            // Set initial UI state and add resize listener
+            window.addEventListener('resize', () => {
+                 // Debounce resize handler? Maybe not necessary for simple fit/position updates
+                 updateDescriptionPosition();
+                 network.fit(); // Adjust view on window resize
+            });
+
+            // Ensure description boxes are hidden initially and positioned correctly
+            loopDescriptionDiv.style.display = 'none';
+            archetypeDescriptionDiv.style.display = 'none';
+            updateDescriptionPosition(); // Set initial positions relative to legends
+
+            // Set the model title display from the HTML document's title
+            if (modelTitleDisplay) {
+                modelTitleDisplay.textContent = document.title || "Causal Loop Diagram"; // Use default if title is empty
+            }
+
+            // Fit the network to the view initially
+            network.fit();
+
+            // Run resequencing on the (now consistent) initial data
+            resequenceLoops(); // This will now correctly process the string IDs
+
+            console.log("Causal Loop Diagram Tool Initialized.");
+
+        }); // End DOMContentLoaded event listener
+    </script>
+
+</body>
+</html>
